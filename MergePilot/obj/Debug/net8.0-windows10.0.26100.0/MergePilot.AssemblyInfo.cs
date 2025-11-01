@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MergePilot")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9c3bd1b33c79b8ef22835ad67a6a4ca30e558852")]
 [assembly: System.Reflection.AssemblyProductAttribute("MergePilot")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MergePilot")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
