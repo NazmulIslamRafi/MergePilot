@@ -1,0 +1,432 @@
+﻿<Controls:MetroWindow x:Class="MergePilot.MainWindow"
+                      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                      xmlns:Controls="http://metro.mahapps.com/winfx/xaml/controls"
+                      xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+                      xmlns:Ease="clr-namespace:System.Windows.Media.Animation;assembly=PresentationCore"
+                      Title="Merge Pilot"
+                      MinWidth="850"
+                      MinHeight="730"
+                      MaxHeight="740"
+                      MaxWidth="850"
+                      WindowStartupLocation="CenterScreen"
+                      Background="#0A192F"
+                      GlowBrush="#60A5FA"
+                      BorderThickness="0"
+                      WindowTransitionsEnabled="True"
+                      Closing="MetroWindow_Closing">
+
+    <Controls:MetroWindow.Resources>
+
+        <Style TargetType="CheckBox" x:Key="ResponsiveCheckBoxStyle">
+            <Setter Property="Margin" Value="0 0 15 0"/>
+        </Style>
+        <LinearGradientBrush x:Key="NormalGradientBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#38BDF8" Offset="0"/>
+            <GradientStop Color="#0284C7" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="HoverGradientBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#0EA5E9" Offset="0"/>
+            <GradientStop Color="#0369A1" Offset="1"/>
+        </LinearGradientBrush>
+
+    </Controls:MetroWindow.Resources>
+
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <!--<RowDefinition Height="Auto"/>-->
+            <!--<RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>-->
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" CornerRadius="15" Padding="20" Background="#1E293B" Effect="{DynamicResource MaterialDesignElevation6}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Title -->
+                <!--<TextBlock Grid.Row="0" Text="🚀 Merge Pilot"
+                           Foreground="#60A5FA"
+                           FontSize="30"
+                           FontWeight="Bold"
+                           FontFamily="Segoe UI"
+                           HorizontalAlignment="Center"
+                           TextDecorations="Underline"/>-->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,10,0,10">
+                    <!-- Merge Icon -->
+                    <materialDesign:PackIcon Kind="SourceMerge" 
+                             Width="30" 
+                             Height="30" 
+                             Foreground="#60A5FA"
+                             VerticalAlignment="Center"/>
+
+                    <!-- Title -->
+                    <TextBlock Text="Merge Pilot"
+               Foreground="#60A5FA"
+               FontSize="30"
+               FontWeight="Bold"
+               FontFamily="Segoe UI"
+               VerticalAlignment="Center"
+               TextDecorations="Underline"/>
+                </StackPanel>
+
+                <!-- Target Repository -->
+                <TextBlock Grid.Row="1" Text="Select Target Repository :"
+                           Foreground="#CBD5E1"
+                           FontSize="16"
+                           FontWeight="Medium"
+                           FontFamily="Segoe UI"
+                           Margin="0 10 0 10"/>
+                <StackPanel x:Name="RepoStackPanel" Grid.Row="2" Orientation="Vertical" Margin="0 0 0 20">
+                    <StackPanel Orientation="Horizontal">
+                        <CheckBox x:Name="chkAuthBackend" Tag="D:\work\office_work\US-Bangla\gitlab\B2C\projects\OTA_Auth_Backend"
+                              Content="Auth Backend"
+                              Style="{StaticResource ResponsiveCheckBoxStyle}"
+                              Foreground="#CBD5E1"
+                              Checked="CheckBox_Changed" Unchecked="CheckBox_Changed"/>
+                        <CheckBox x:Name="chkAdminBackend" Tag="D:\work\office_work\US-Bangla\gitlab\B2C\projects\OTA_Admin_Backend"
+                              Content="Admin Backend"
+                              Style="{StaticResource ResponsiveCheckBoxStyle}"
+                              Foreground="#CBD5E1"
+                              Checked="CheckBox_Changed" Unchecked="CheckBox_Changed"/>
+                        <CheckBox x:Name="chkFlightBackend" Tag="D:\work\office_work\US-Bangla\gitlab\B2C\projects\OTA_Flight_Backend"
+                              Content="Flight Backend"
+                              Style="{StaticResource ResponsiveCheckBoxStyle}"
+                              Foreground="#CBD5E1"
+                              Checked="CheckBox_Changed" Unchecked="CheckBox_Changed"/>
+                        <CheckBox x:Name="chkCRMBackend" Tag="D:\work\office_work\US-Bangla\gitlab\B2C\projects\OTA_CRM_Backend"
+                              Content="CRM Backend"
+                              Style="{StaticResource ResponsiveCheckBoxStyle}"
+                              Foreground="#CBD5E1"
+                              Checked="CheckBox_Changed" Unchecked="CheckBox_Changed"/>
+                        <CheckBox x:Name="chkPushNotificationBackend" Tag="D:\work\office_work\US-Bangla\gitlab\B2C\projects\OTA_PushNotification_Backend"
+                              Content="PushNotification Backend"
+                              Style="{StaticResource ResponsiveCheckBoxStyle}"
+                              Foreground="#CBD5E1"
+                              Checked="CheckBox_Changed" Unchecked="CheckBox_Changed"/>
+                        <CheckBox x:Name="chkSchedulerBackend" Tag="D:\work\office_work\US-Bangla\gitlab\B2C\projects\OTA_Scheduler_Backend"
+                              Content="Scheduler Backend"
+                              Style="{StaticResource ResponsiveCheckBoxStyle}"
+                              Foreground="#CBD5E1"
+                              Checked="CheckBox_Changed" Unchecked="CheckBox_Changed"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0 10 0 0">
+                        <CheckBox x:Name="chkAdminFrontend" Tag="D:\work\office_work\US-Bangla\gitlab\B2C\projects\OTA_Admin_Frontend"
+                              Content="Admin Frontend"
+                              Style="{StaticResource ResponsiveCheckBoxStyle}"
+                              Foreground="#CBD5E1"
+                              Checked="CheckBox_Changed" Unchecked="CheckBox_Changed"/>
+                    </StackPanel>
+
+
+                </StackPanel>
+                
+
+
+                <!-- Source Branch -->
+                <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0 0 0 0">
+                    <TextBlock Text="Source Branch :"
+                               Foreground="#CBD5E1"
+                               FontSize="16"
+                               FontWeight="Medium"
+                               FontFamily="Segoe UI"
+                               VerticalAlignment="Center"
+                               Margin="0 0 15 0"/>
+                    <ComboBox x:Name="SourceBranchBox"
+                              Style="{StaticResource ResponsiveComboBoxStyle}"
+                              SelectedIndex="0" Width="285">
+                        <ComboBoxItem Content="develop" FontSize="14"/>
+                        <ComboBoxItem Content="==========FirstTrip==========" FontSize="14"/>
+                        
+                        <ComboBoxItem Content="b2c-first-trip/deployment-dev" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-first-trip/deployment-stage" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-first-trip/deployment-pre-prod" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-first-trip/deployment-prod" FontSize="14"/>
+
+                        <ComboBoxItem Content="==========TripLover==========" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-triplover/deployment-dev" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-triplover/deployment-stage" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-triplover/deployment-pre-prod" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-triplover/deployment-prod" FontSize="14"/>
+
+                        <ComboBoxItem Content="==========TakeTrip==========" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-taketrip/deployment-dev" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-taketrip/deployment-stage" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-taketrip/deployment-pre-prod" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-taketrip/deployment-prod" FontSize="14"/>
+
+                        <ComboBoxItem Content="==========TakeOff==========" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-takeoff/deployment-dev" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-takeoff/deployment-stage" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-takeoff/deployment-pre-prod" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-takeoff/deployment-prod" FontSize="14"/>
+
+                        <ComboBoxItem Content="==========TravelChamp==========" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-travelchamp/deployment-dev" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-travelchamp/deployment-stage" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-travelchamp/deployment-pre-prod" FontSize="14"/>
+                        <ComboBoxItem Content="b2c-travelchamp/deployment-prod" FontSize="14"/>
+                    </ComboBox>
+                </StackPanel>
+
+                <!-- Target Environments -->
+                <TextBlock Grid.Row="4" Text="Select Target Environments :"
+                           Foreground="#CBD5E1"
+                           FontSize="16"
+                           FontWeight="Medium"
+                           FontFamily="Segoe UI"
+                           Margin="0 15 0 10"/>
+                <StackPanel x:Name="EnvStackPanel" Grid.Row="5" Orientation="Horizontal" Margin="0 0 0 10">
+                    <CheckBox x:Name="chkAllCheckUncheck" Content="Select All" Style="{StaticResource ResponsiveCheckBoxStyle}" Checked="chkAllCheckUncheck_Checked" Unchecked="chkAllCheckUncheck_Checked" Foreground="#CBD5E1"/>
+                    <CheckBox x:Name="chkDev" Content="Dev" Style="{StaticResource ResponsiveCheckBoxStyle}" Checked="CheckBox_Changed" Unchecked="CheckBox_Changed" Foreground="#CBD5E1"/>
+                    <CheckBox x:Name="chkStage" Content="Stage" Style="{StaticResource ResponsiveCheckBoxStyle}" Checked="CheckBox_Changed" Unchecked="CheckBox_Changed" Foreground="#CBD5E1"/>
+                    <CheckBox x:Name="chkPreProd" Content="Pre-Prod" Style="{StaticResource ResponsiveCheckBoxStyle}" Checked="CheckBox_Changed" Unchecked="CheckBox_Changed" Foreground="#CBD5E1"/>
+                    <CheckBox x:Name="chkProd" Content="Prod" Style="{StaticResource ResponsiveCheckBoxStyle}" Checked="CheckBox_Changed" Unchecked="CheckBox_Changed" Foreground="#CBD5E1"/>
+                </StackPanel>
+
+                <!-- Client Branches -->
+                <TextBlock Grid.Row="6" Text="Select Target Client Branch :"
+                           Foreground="#CBD5E1"
+                           FontSize="16"
+                           FontWeight="Medium"
+                           FontFamily="Segoe UI"
+                           Margin="0 10 0 10"/>
+                <WrapPanel x:Name="ClientWrapPanel" Grid.Row="7" Margin="0 0 0 10" ItemHeight="30" ItemWidth="140">
+                    <CheckBox x:Name="chkClientCheckUncheck" Content="Select All" Style="{StaticResource ResponsiveCheckBoxStyle}" Checked="chkClientCheckUncheck_Checked" Unchecked="chkClientCheckUncheck_Checked" Foreground="#CBD5E1"/>
+                    <CheckBox x:Name="chkFirsttrip" Tag="b2c-first-trip" Content="FirstTrip" Style="{StaticResource ResponsiveCheckBoxStyle}" Checked="CheckBox_Changed" Unchecked="CheckBox_Changed" Foreground="#CBD5E1" Margin="0 0 15 0"/>
+                    <CheckBox x:Name="chkTriplover" Tag="b2c-triplover" Content="TripLover" Style="{StaticResource ResponsiveCheckBoxStyle}" Checked="CheckBox_Changed" Unchecked="CheckBox_Changed" Foreground="#CBD5E1" Margin="0 0 15 0"/>
+                    <CheckBox x:Name="chkTravelchamp" Tag="b2c-travelchamp" Content="TravelChamp" Style="{StaticResource ResponsiveCheckBoxStyle}" Checked="CheckBox_Changed" Unchecked="CheckBox_Changed" Foreground="#CBD5E1" Margin="0 0 15 0"/>
+                    <CheckBox x:Name="chkTakeoff" Tag="b2c-takeoff" Content="TakeOff" Style="{StaticResource ResponsiveCheckBoxStyle}" Checked="CheckBox_Changed" Unchecked="CheckBox_Changed" Foreground="#CBD5E1"/>
+                    <CheckBox x:Name="chkTaketrip" Tag="b2c-taketrip" Content="TakeTrip" Style="{StaticResource ResponsiveCheckBoxStyle}" Checked="CheckBox_Changed" Unchecked="CheckBox_Changed" Foreground="#CBD5E1"/>
+                </WrapPanel>
+            </Grid>
+        </Border>
+
+        <!-- animated button -->
+        <Button x:Name="btnMerge"
+        Grid.Row="1"
+        Content="MERGE BRANCHES"
+        IsEnabled="False"
+        Style="{StaticResource MaterialDesignRaisedButton}"
+        Background="{StaticResource NormalGradientBrush}"
+        Foreground="White"
+        FontWeight="Bold"
+        Height="50"
+        Padding="20 10"
+        Margin="0 15 0 0"
+        HorizontalAlignment="Center"
+        Click="Merge_Click"
+        materialDesign:ButtonProgressAssist.IsIndeterminate="False">
+            <Button.Template>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="border"
+                    Background="{TemplateBinding Background}"
+                    CornerRadius="10"
+                    Padding="{TemplateBinding Padding}">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock x:Name="RocketIcon" Foreground="#FB923C" Text="🚀" FontSize="20" Margin="0 0 8 0">
+                                <TextBlock.RenderTransform>
+                                    <TranslateTransform Y="0"/>
+                                </TextBlock.RenderTransform>
+                            </TextBlock>
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <!-- Hover Effect -->
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource HoverGradientBrush}"/>
+                        </Trigger>
+
+                        <!-- Enabled State: Start Rocket Animation -->
+                        <Trigger Property="IsEnabled" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource NormalGradientBrush}"/>
+                            <Setter Property="Opacity" Value="1"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard x:Name="RocketAnimStoryboard">
+                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                        <DoubleAnimation
+                                    Storyboard.TargetName="RocketIcon"
+                                    Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                    From="0" To="-6"
+                                    Duration="0:0:0.6"
+                                    AutoReverse="True"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="RocketAnimStoryboard"/>
+                            </Trigger.ExitActions>
+                        </Trigger>
+
+                        <!-- Disabled State: Stop animation + Gray color -->
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="border" Property="Background" Value="#475569"/>
+                            <Setter Property="Opacity" Value="0.7"/>
+                            <Trigger.EnterActions>
+                                <StopStoryboard BeginStoryboardName="RocketAnimStoryboard"/>
+                            </Trigger.EnterActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Button.Template>
+        </Button>
+
+        <!-- Output Log -->
+        <!--<TextBlock Grid.Row="2" Text="Output Log:"
+                   Foreground="#CBD5E1"
+                   FontSize="16"
+                   FontWeight="Medium"
+                   FontFamily="Segoe UI"
+                   Margin="0 10 0 10"/>
+        <ScrollViewer Grid.Row="3" Height="200" Background="#111827" Padding="10" VerticalScrollBarVisibility="Auto">
+            <Border CornerRadius="10" Background="#1F2937">
+                <TextBlock x:Name="OutputBox"
+                           Foreground="#E2E8F0"
+                           FontFamily="Consolas"
+                           FontSize="14"
+                           TextWrapping="Wrap"
+                           Padding="10"/>
+            </Border>
+        </ScrollViewer>-->
+        <Border Grid.Row="2" CornerRadius="15" Padding="0" >
+            <!-- Parent Grid -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <!-- Output Log -->
+                    <ColumnDefinition Width="*"/>
+                    <!-- Error Log -->
+                </Grid.ColumnDefinitions>
+
+                <!-- Output Log -->
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Output Log:"
+                       Foreground="#CBD5E1"
+                       FontSize="16"
+                       FontWeight="Medium"
+                       FontFamily="Segoe UI"
+                       Margin="0 10 0 10"/>
+                    <ScrollViewer Height="200" Background="#111827" Padding="10" VerticalScrollBarVisibility="Auto">
+                        <Border CornerRadius="10" Background="#1F2937">
+                            <TextBox x:Name="OutputBox"
+                             Foreground="#FCA5A5"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             FontFamily="Consolas"
+                             FontSize="14"
+                             TextWrapping="Wrap"
+                             Padding="10"
+                             IsReadOnly="True"
+                             AcceptsReturn="True"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto"
+                             IsReadOnlyCaretVisible="True"/>
+                        </Border>
+                    </ScrollViewer>
+                </StackPanel>
+
+                <!-- Error Log -->
+                <StackPanel Grid.Column="1">
+                    <DockPanel>
+                        <TextBlock Text="Error Log:"
+                               Foreground="#F87171"
+                               FontSize="16"
+                               FontWeight="Medium"
+                               FontFamily="Segoe UI"
+                               Margin="0 10 0 10"/>
+                        <!-- Clear Button -->
+                        <Button Content="Clear"
+                                Width="70"
+                                Height="26"
+                                Background="#374151"
+                                Foreground="#F87171"
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                BorderBrush="#F87171"
+                                BorderThickness="1"
+                                Cursor="Hand"
+                                Margin="0 0 10 0"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Click="ClearErrorBox_Click">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="6"
+                                        Padding="6,2">
+                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+
+                                    <Setter Property="Background" Value="#374151"/>
+                                    <Setter Property="Foreground" Value="#F87171"/>
+                                    <Setter Property="BorderBrush" Value="#F87171"/>
+                                    <Setter Property="Cursor" Value="Hand"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                    <Setter Property="FontSize" Value="13"/>
+
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#F87171"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </DockPanel>
+                    <ScrollViewer Height="200" Background="#111827" Padding="10" VerticalScrollBarVisibility="Auto">
+                        <Border CornerRadius="10" Background="#1F2937">
+                            <TextBox x:Name="ErrorBox"
+                             Foreground="#FCA5A5"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             FontFamily="Consolas"
+                             FontSize="14"
+                             TextWrapping="Wrap"
+                             Padding="10"
+                             IsReadOnly="True"
+                             AcceptsReturn="True"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto"
+                             IsReadOnlyCaretVisible="True"/>
+                            <!-- Allows selection + copy -->
+                        </Border>
+                    </ScrollViewer>
+                </StackPanel>
+            </Grid>
+        </Border>
+        <!-- Footer -->
+        <TextBlock Grid.Row="3" Text="Developed by Md Nazmul Islam"
+                   Foreground="#64748B"
+                   FontSize="14"
+                   FontFamily="Segoe UI"
+                   HorizontalAlignment="Right"
+                   Margin="0 20 0 20"/>
+    </Grid>
+</Controls:MetroWindow>

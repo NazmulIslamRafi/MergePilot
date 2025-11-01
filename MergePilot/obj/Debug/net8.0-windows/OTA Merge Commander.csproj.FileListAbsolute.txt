@@ -1,0 +1,8 @@
+D:\TechnoNext\OTA_Project\B2C\RND\OTA Merge Commander\OTA Merge Commander\obj\Debug\net8.0-windows\OTA Merge Commander.csproj.AssemblyReference.cache
+D:\TechnoNext\OTA_Project\B2C\RND\OTA Merge Commander\OTA Merge Commander\obj\Debug\net8.0-windows\MainWindow.baml
+D:\TechnoNext\OTA_Project\B2C\RND\OTA Merge Commander\OTA Merge Commander\obj\Debug\net8.0-windows\SplashScreen.baml
+D:\TechnoNext\OTA_Project\B2C\RND\OTA Merge Commander\OTA Merge Commander\obj\Debug\net8.0-windows\MainWindow.g.cs
+D:\TechnoNext\OTA_Project\B2C\RND\OTA Merge Commander\OTA Merge Commander\obj\Debug\net8.0-windows\SplashScreen.g.cs
+D:\TechnoNext\OTA_Project\B2C\RND\OTA Merge Commander\OTA Merge Commander\obj\Debug\net8.0-windows\App.g.cs
+D:\TechnoNext\OTA_Project\B2C\RND\OTA Merge Commander\OTA Merge Commander\obj\Debug\net8.0-windows\OTA Merge Commander_MarkupCompile.cache
+D:\TechnoNext\OTA_Project\B2C\RND\OTA Merge Commander\OTA Merge Commander\obj\Debug\net8.0-windows\OTA Merge Commander_MarkupCompile.lref

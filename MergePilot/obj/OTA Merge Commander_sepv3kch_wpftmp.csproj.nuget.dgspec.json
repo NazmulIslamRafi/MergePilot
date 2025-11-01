@@ -1,0 +1,99 @@
+{
+  "format": 1,
+  "restore": {
+    "D:\\TechnoNext\\OTA_Project\\B2C\\RND\\OTA Merge Commander\\OTA Merge Commander\\OTA Merge Commander.csproj": {}
+  },
+  "projects": {
+    "D:\\TechnoNext\\OTA_Project\\B2C\\RND\\OTA Merge Commander\\OTA Merge Commander\\OTA Merge Commander.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "D:\\TechnoNext\\OTA_Project\\B2C\\RND\\OTA Merge Commander\\OTA Merge Commander\\OTA Merge Commander.csproj",
+        "projectName": "OTA Merge Commander",
+        "projectPath": "D:\\TechnoNext\\OTA_Project\\B2C\\RND\\OTA Merge Commander\\OTA Merge Commander\\OTA Merge Commander.csproj",
+        "packagesPath": "C:\\Users\\delowarhossain\\.nuget\\packages\\",
+        "outputPath": "D:\\TechnoNext\\OTA_Project\\B2C\\RND\\OTA Merge Commander\\OTA Merge Commander\\obj\\",
+        "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "C:\\Users\\delowarhossain\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0-windows10.0.26100.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0-windows10.0.26100": {
+            "targetAlias": "net8.0-windows10.0.26100.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.300"
+      },
+      "frameworks": {
+        "net8.0-windows10.0.26100": {
+          "targetAlias": "net8.0-windows10.0.26100.0",
+          "dependencies": {
+            "MahApps.Metro": {
+              "target": "Package",
+              "version": "[2.4.11, )"
+            },
+            "MaterialDesignColors": {
+              "target": "Package",
+              "version": "[5.3.0, )"
+            },
+            "MaterialDesignThemes": {
+              "target": "Package",
+              "version": "[5.3.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.Windows.SDK.NET.Ref",
+              "version": "[10.0.26100.57, 10.0.26100.57]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            },
+            "Microsoft.Windows.SDK.NET.Ref.Windows": {
+              "privateAssets": "all"
+            },
+            "Microsoft.WindowsDesktop.App": {
+              "privateAssets": "none"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.306/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}
