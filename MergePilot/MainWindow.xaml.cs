@@ -1,73 +1,336 @@
-﻿using System.Text;
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+using System.Windows.Threading;
 using MahApps.Metro.Controls;
 using CheckBox = System.Windows.Controls.CheckBox;
+using MaterialDesignThemes.Wpf;
 
 namespace MergePilot
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
     public partial class MainWindow : MetroWindow
     {
+        private readonly ConcurrentQueue<string> _outputQueue = new();
+        private readonly ConcurrentQueue<string> _errorQueue = new();
+        private readonly DispatcherTimer _logFlushTimer;
+        private const int MaxLogChars = 200_000; // cap to keep UI responsive
+        private LogWindow _outputLogWindow;
+        private LogWindow _errorLogWindow;
+
         public MainWindow()
         {
             InitializeComponent();
             ValidateSelections();
+            _logFlushTimer = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(200)
+            };
+            _logFlushTimer.Tick += (s, e) => FlushLogQueues();
+            _logFlushTimer.Start();
 
+            // create detached log windows but don't show until requested
+            try
+            {
+                _outputLogWindow = new LogWindow() { Owner = this, Title = "Output Log" };
+                _errorLogWindow = new LogWindow() { Owner = this, Title = "Error Log" };
+            }
+            catch { /* ignore if UI initialization not ready */ }
         }
 
         private async void Merge_Click(object sender, RoutedEventArgs e)
         {
+            var cts = new CancellationTokenSource();
+            btnMerge.IsEnabled = false;
+            ButtonProgressAssist.SetIsIndeterminate(btnMerge, true);
+
+            var successList = new List<string>();
+            var skipList = new List<string>();
+            var failList = new List<string>();
+
             string source = SourceBranchBox.Text.Trim();
-
-            var repoPath = GetSelectedRepositories();
+            var repoPaths = GetSelectedRepositories();
             var targetEnvs = GetSelectedEnvironments();
-            var targetBranches = GetClientBranch();
+            var clientBranches = GetClientBranch();
 
-            OutputBox.Text = "Merging in progress...\n";
-            foreach (var repo in repoPath)
+            AppendOutput("Merging started...");
+
+            try
             {
-                foreach (var env in targetEnvs)
+                if (string.IsNullOrWhiteSpace(source))
                 {
-                    foreach (var branch in targetBranches)
-                    {
-                        string targetBranch = $"{branch}/deployment-{env}";
-                        try
-                        {
-                            var result = await GitHelper.MergeBranchAsync(repo, source, targetBranch);
-                            OutputBox.Text += "\n" + result + "\n";
-                        }
-                        catch (Exception ex)
-                        {
-                            ErrorBox.Text += string.IsNullOrEmpty(ErrorBox.Text.ToString()) ?
-                                $"❌ Merge failed for {targetBranch}: {ex.Message}" : $"\n❌ Merge failed for {targetBranch}: {ex.Message}";
-                        }
-                    }
+                    AppendError("Source branch is empty. Please select a source branch.");
+                    return;
                 }
+
+                foreach (var repo in repoPaths)
+                {
+                    AppendOutput($"================ Project: {repo} ================");
+                    if (!System.IO.Directory.Exists(repo) || !System.IO.Directory.Exists(System.IO.Path.Combine(repo, ".git")))
+                    {
+                        AppendError($"❌ Repository path not found or not a git repo: {repo}");
+                        failList.Add($"{repo} | all branches | repo not found");
+                        continue;
+                    }
+
+                    foreach (var env in targetEnvs)
+                    {
+                        foreach (var client in clientBranches)
+                        {
+                            string targetBranch = $"{client}/deployment-{env}";
+                            AppendOutput($"🔁 {repo} → {targetBranch}  (Source: {source})");
+
+                            try
+                            {
+                                // Run merge operation on background thread
+                                var result = await GitHelper.MergeBranchAsync(repo, source, targetBranch, cts.Token);
+
+                                // Handle results — only UI interactions are invoked on Dispatcher
+                                switch (result.Status)
+                                {
+                                    case MergeStatus.Success:
+                                        Dispatcher.Invoke(() =>
+                                        {
+                                            AppendOutput($"✔ {result.Message}");
+                                            successList.Add($"{repo} | {targetBranch}");
+                                        });
+                                        break;
+
+                                    case MergeStatus.Skipped:
+                                        Dispatcher.Invoke(() =>
+                                        {
+                                            AppendOutput($"⏭ {result.Message}");
+                                            skipList.Add($"{repo} | {targetBranch}");
+                                        });
+                                        break;
+
+                                    case MergeStatus.Conflict:
+                                        // Log conflict on UI
+                                        Dispatcher.Invoke(() => AppendError($"❌ Conflict: {result.Message}"));
+
+                                        // Ask user what to do (synchronously marshal to UI thread)
+                                        var msg = $"Merge conflict while merging '{source}' into '{targetBranch}' for repo '{repo}'.\n\n" +
+                                                  "Choose 'Yes' to open repository folder and resolve manually, then press OK to continue.\n" +
+                                                  "Choose 'No' to abort merge and skip this branch.";
+                                        var userChoice = (MessageBoxResult)Dispatcher.Invoke(() => System.Windows.MessageBox.Show(msg, "Merge Conflict", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No));
+
+                                        if (userChoice == MessageBoxResult.Yes)
+                                        {
+                                            // Open repo in Explorer for user to resolve (UI)
+                                            Dispatcher.Invoke(() =>
+                                            {
+                                                try
+                                                {
+                                                    Process.Start(new ProcessStartInfo
+                                                    {
+                                                        FileName = "explorer",
+                                                        Arguments = $"\"{repo}\"",
+                                                        UseShellExecute = true
+                                                    });
+                                                }
+                                                catch
+                                                {
+                                                    AppendError($"⚠ Could not open explorer for: {repo}");
+                                                }
+                                            });
+
+                                            // Wait for user to resolve conflicts manually (UI)
+                                            var resolvedPrompt = Dispatcher.Invoke(() =>
+                                                System.Windows.MessageBox.Show("Resolve conflicts in the opened repository (stage & commit). Click OK when done, or Cancel to abort & skip.", "Resolve Conflicts", MessageBoxButton.OKCancel, MessageBoxImage.Information));
+
+                                            if (resolvedPrompt == MessageBoxResult.Cancel)
+                                            {
+                                                // Abort merge (background) and record failure on UI
+                                                var abortResult = await GitHelper.AbortMergeAsync(repo, cts.Token);
+                                                Dispatcher.Invoke(() =>
+                                                {
+                                                    AppendError($"❌ Merge aborted: {abortResult.StdErr}");
+                                                    failList.Add($"{repo} | {targetBranch} | aborted by user");
+                                                });
+
+                                                // skip further processing of this target branch
+                                                continue;
+                                            }
+
+                                            // Attempt to add/commit/push the resolution on background thread
+                                            var add = await GitHelper.RetryRunGitCommandAsync(repo, "add -A", 3, TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(1), cts.Token);
+                                            if (!add.IsSuccess)
+                                            {
+                                                Dispatcher.Invoke(() =>
+                                                {
+                                                    AppendError($"❌ 'git add' failed: {add.StdErr}");
+                                                    failList.Add($"{repo} | {targetBranch} | add failed");
+                                                });
+                                                continue;
+                                            }
+
+                                            var commit = await GitHelper.RetryRunGitCommandAsync(repo, "commit -m \"Resolve merge conflicts by user\"", 3, TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(1), cts.Token);
+                                            if (!commit.IsSuccess)
+                                            {
+                                                // If nothing to commit, log info and continue to push attempt
+                                                Dispatcher.Invoke(() =>
+                                                {
+                                                    AppendOutput($"ℹ 'git commit' returned: {commit.StdErr} {commit.StdOut}");
+                                                });
+                                            }
+
+                                            var push = await GitHelper.RetryRunGitCommandAsync(repo, $"push origin {targetBranch}", 3, TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(2), cts.Token);
+                                            if (!push.IsSuccess)
+                                            {
+                                                Dispatcher.Invoke(() =>
+                                                {
+                                                    AppendError($"❌ Push failed after manual resolution: {push.StdErr}");
+                                                    failList.Add($"{repo} | {targetBranch} | push failed after resolution");
+                                                });
+                                            }
+                                            else
+                                            {
+                                                Dispatcher.Invoke(() =>
+                                                {
+                                                    AppendOutput($"✔ Manual resolution pushed: {targetBranch}");
+                                                    successList.Add($"{repo} | {targetBranch}");
+                                                });
+                                            }
+                                        }
+                                        else
+                                        {
+                                            // Abort merge and skip (background) then update UI lists
+                                            var abort = await GitHelper.AbortMergeAsync(repo, cts.Token);
+                                            Dispatcher.Invoke(() =>
+                                            {
+                                                AppendError($"❌ Merge aborted for {targetBranch}: {abort.StdErr}");
+                                                failList.Add($"{repo} | {targetBranch} | merge conflict (aborted)");
+                                            });
+                                        }
+                                        break;
+
+                                    case MergeStatus.Failed:
+                                        Dispatcher.Invoke(() =>
+                                        {
+                                            AppendError($"❌ {result.Message}");
+                                            failList.Add($"{repo} | {targetBranch} | failed");
+                                        });
+                                        break;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                // Ensure UI updates are done on UI thread
+                                Dispatcher.Invoke(() =>
+                                {
+                                    AppendError($"❌ Exception for {targetBranch}: {ex.Message}");
+                                    failList.Add($"{repo} | {targetBranch} | exception");
+                                });
+                            }
+                        } // client
+                    } // env
+
+                    AppendOutput($"✅ Completed: {repo}");
+                } // repo
             }
-            OutputBox.Text += "\n✅ Merge completed!";
+            finally
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    ButtonProgressAssist.SetIsIndeterminate(btnMerge, false);
+                    btnMerge.IsEnabled = true;
+                });
+
+                // Final summary
+                AppendOutput("\n=== FINAL SUMMARY ===");
+                AppendOutput($"✅ SUCCESSFUL MERGES ({successList.Count}):");
+                foreach (var s in successList) AppendOutput($"  ✔ {s}");
+
+                AppendOutput($"\n⏭ SKIPPED ({skipList.Count}):");
+                foreach (var s in skipList) AppendOutput($"  ⏭ {s}");
+
+                AppendOutput($"\n❌ FAILED ({failList.Count}):");
+                foreach (var f in failList) AppendError($"  ❌ {f}");
+
+                AppendOutput("\nMerging finished.");
+            }
         }
 
         private void CheckBox_Changed(object sender, RoutedEventArgs e)
         {
             ValidateSelections();
         }
+
+        // Button handler to pull selected branches from origin (mirrors provided bash script behavior)
+        private async void PullSelectedBranches_Click(object sender, RoutedEventArgs e)
+        {
+            var cts = new CancellationTokenSource();
+            // Disable the pull button and show indeterminate progress on it
+            btnPullBranches.IsEnabled = false;
+            ButtonProgressAssist.SetIsIndeterminate(btnPullBranches, true);
+
+            try
+            {
+                var repoPaths = GetSelectedRepositories();
+                var targetEnvs = GetSelectedEnvironments();
+                var clientBranches = GetClientBranch();
+
+                AppendOutput("Starting update of selected branches from origin...");
+
+                foreach (var repo in repoPaths)
+                {
+                    AppendOutput($"================ Project: {repo} ================");
+                    if (!System.IO.Directory.Exists(repo) || !System.IO.Directory.Exists(System.IO.Path.Combine(repo, ".git")))
+                    {
+                        AppendError($"❌ Repository path not found or not a git repo: {repo}");
+                        continue;
+                    }
+
+                    // Build branch list: include 'develop' plus client/deployment-{env} combos
+                    var branches = new List<string> { "develop" };
+                    foreach (var env in targetEnvs)
+                    {
+                        foreach (var client in clientBranches)
+                        {
+                            branches.Add($"{client}/deployment-{env}");
+                        }
+                    }
+
+                    foreach (var branch in branches)
+                    {
+                        AppendOutput($"🔄 {repo} → {branch}");
+                        try
+                        {
+                            var result = await GitHelper.EnsureBranchLatestAsync(repo, branch, cts.Token);
+                            if (result.IsSuccess)
+                                AppendOutput($"✔ {result.Message}");
+                            else
+                                AppendError($"❌ {result.Message}");
+                        }
+                        catch (Exception ex)
+                        {
+                            AppendError($"❌ Exception while updating '{branch}': {ex.Message}");
+                        }
+                    }
+
+                    AppendOutput($"✅ Completed updates for: {repo}");
+                }
+
+                AppendOutput("Branch update run finished.");
+            }
+            finally
+            {
+                ButtonProgressAssist.SetIsIndeterminate(btnPullBranches, false);
+                btnPullBranches.IsEnabled = true;
+            }
+        }
+
         #region Private methods
         private List<string> GetClientBranch()
         {
             List<string> targetClients = new List<string>();
 
-            // Check which client checkboxes are selected
             if (chkFirsttrip.IsChecked == true)
                 targetClients.Add(chkFirsttrip.Tag.ToString());
 
@@ -126,13 +389,35 @@ namespace MergePilot
 
             return selectedRepos;
         }
+
+        private bool PanelHasCheckedCheckBox(System.Windows.Controls.Panel panel)
+        {
+            foreach (var child in panel.Children)
+            {
+                if (child is CheckBox cb && cb.IsChecked == true)
+                    return true;
+
+                if (child is System.Windows.Controls.Panel innerPanel && PanelHasCheckedCheckBox(innerPanel))
+                    return true;
+
+                // cover ContentControls that may host a CheckBox (e.g. WrapPanel items)
+                if (child is System.Windows.Controls.ContentControl contentControl && contentControl.Content is CheckBox contentCb && contentCb.IsChecked == true)
+                    return true;
+            }
+            return false;
+        }
+
         private void ValidateSelections()
         {
-            bool hasRepo = RepoStackPanel.Children.OfType<CheckBox>().Any(chk => chk.IsChecked == true);
-            bool hasEnv = EnvStackPanel.Children.OfType<CheckBox>().Any(chk => chk.IsChecked == true);
-            bool hasClient = ClientWrapPanel.Children.OfType<CheckBox>().Any(chk => chk.IsChecked == true);
+            bool hasRepo = PanelHasCheckedCheckBox(RepoStackPanel);
+            bool hasEnv = PanelHasCheckedCheckBox(EnvStackPanel);
+            bool hasClient = PanelHasCheckedCheckBox(ClientWrapPanel);
 
-            btnMerge.IsEnabled = hasRepo && hasEnv && hasClient;
+            bool enabled = hasRepo && hasEnv && hasClient;
+            btnMerge.IsEnabled = enabled;
+            // Keep pull branches button following same selection rules
+            if (btnPullBranches != null)
+                btnPullBranches.IsEnabled = enabled;
         }
 
         #endregion
@@ -146,7 +431,7 @@ namespace MergePilot
         {
             if (chkAllCheckUncheck.IsChecked == true)
             {
-                chkAllCheckUncheck.Content = "Deselect All";
+                chkAllCheckUncheck.Content = "All";
                 chkDev.IsChecked = true;
                 chkStage.IsChecked = true;
                 chkPreProd.IsChecked = true;
@@ -154,7 +439,7 @@ namespace MergePilot
             }
             else
             {
-                chkAllCheckUncheck.Content = "Select All";
+                chkAllCheckUncheck.Content = "All";
                 chkDev.IsChecked = false;
                 chkStage.IsChecked = false;
                 chkPreProd.IsChecked = false;
@@ -171,7 +456,7 @@ namespace MergePilot
         {
             if (chkClientCheckUncheck.IsChecked == true)
             {
-                chkAllCheckUncheck.Content = "Deselect All";
+                chkAllCheckUncheck.Content = "All";
                 chkFirsttrip.IsChecked = true;
                 chkTriplover.IsChecked = true;
                 chkTravelchamp.IsChecked = true;
@@ -180,7 +465,7 @@ namespace MergePilot
             }
             else
             {
-                chkAllCheckUncheck.Content = "Select All";
+                chkAllCheckUncheck.Content = "All";
                 chkFirsttrip.IsChecked = false;
                 chkTriplover.IsChecked = false;
                 chkTravelchamp.IsChecked = false;
@@ -188,5 +473,99 @@ namespace MergePilot
                 chkTaketrip.IsChecked = false;
             }
         }
+
+        #region UI helpers
+        private void AppendOutput(string text)
+        {
+            var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            _outputQueue.Enqueue($"[{timestamp}] {text}\n");
+        }
+
+        private void AppendError(string text)
+        {
+            var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            _errorQueue.Enqueue($"[{timestamp}] {text}\n");
+        }
+
+        private void FlushLogQueues()
+        {
+            try
+            {
+                if (_outputQueue.Count > 0)
+                {
+                    var sb = new StringBuilder();
+                    while (_outputQueue.TryDequeue(out var item))
+                        sb.Append(item);
+
+                    if (sb.Length > 0)
+                    {
+                        var text = sb.ToString();
+                        OutputBox.AppendText(text);
+                        OutputBox.ScrollToEnd();
+                        try { _outputLogWindow?.AppendText(text); } catch { }
+                    }
+                }
+
+                if (_errorQueue.Count > 0)
+                {
+                    var sb2 = new StringBuilder();
+                    while (_errorQueue.TryDequeue(out var item))
+                        sb2.Append(item);
+
+                    if (sb2.Length > 0)
+                    {
+                        var text2 = sb2.ToString();
+                        ErrorBox.AppendText(text2);
+                        ErrorBox.ScrollToEnd();
+                        try { _errorLogWindow?.AppendText(text2); } catch { }
+                    }
+                }
+
+                // Trim if logs grow too large
+                if (OutputBox.Text.Length > MaxLogChars)
+                {
+                    OutputBox.Text = OutputBox.Text.Substring(OutputBox.Text.Length - MaxLogChars);
+                    OutputBox.CaretIndex = OutputBox.Text.Length;
+                    OutputBox.ScrollToEnd();
+                }
+                if (ErrorBox.Text.Length > MaxLogChars)
+                {
+                    ErrorBox.Text = ErrorBox.Text.Substring(ErrorBox.Text.Length - MaxLogChars);
+                    ErrorBox.CaretIndex = ErrorBox.Text.Length;
+                    ErrorBox.ScrollToEnd();
+                }
+            }
+            catch
+            {
+                // swallow any logging errors to avoid crashing the app
+            }
+        }
+
+        private void OpenOutputWindow_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_outputLogWindow == null)
+                    _outputLogWindow = new LogWindow() { Owner = this, Title = "Output Log" };
+
+                _outputLogWindow.Show();
+                _outputLogWindow.Activate();
+            }
+            catch { }
+        }
+
+        private void OpenErrorWindow_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_errorLogWindow == null)
+                    _errorLogWindow = new LogWindow() { Owner = this, Title = "Error Log" };
+
+                _errorLogWindow.Show();
+                _errorLogWindow.Activate();
+            }
+            catch { }
+        }
+        #endregion
     }
 }

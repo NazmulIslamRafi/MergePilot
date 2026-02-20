@@ -1,0 +1,27 @@
+<Controls:MetroWindow x:Class="MergePilot.LogWindow"
+                      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                      xmlns:Controls="http://metro.mahapps.com/winfx/xaml/controls"
+                      Title="Log" Height="700" Width="1000"
+                      WindowStartupLocation="CenterOwner"
+                      Background="#071422"
+                      GlowBrush="#60A5FA">
+
+    <Grid Margin="8">
+        <Border CornerRadius="8" Background="#0F1720" Padding="8">
+            <TextBox x:Name="LogTextBox"
+                     Foreground="#E2E8F0"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     FontFamily="Consolas"
+                     FontSize="14"
+                     TextWrapping="Wrap"
+                     Padding="6"
+                     IsReadOnly="True"
+                     AcceptsReturn="True"
+                     VerticalScrollBarVisibility="Auto"
+                     HorizontalScrollBarVisibility="Auto"
+                     IsReadOnlyCaretVisible="True"/>
+        </Border>
+    </Grid>
+</Controls:MetroWindow>

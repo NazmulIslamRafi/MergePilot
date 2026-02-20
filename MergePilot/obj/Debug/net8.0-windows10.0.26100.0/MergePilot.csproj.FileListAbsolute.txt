@@ -47,9 +47,11 @@ D:\work\office_work\US-Bangla\gitlab\MergePilot\MergePilot\bin\Debug\net8.0-wind
 D:\work\office_work\US-Bangla\gitlab\MergePilot\MergePilot\bin\Debug\net8.0-windows10.0.26100.0\Microsoft.Windows.SDK.NET.dll
 D:\work\office_work\US-Bangla\gitlab\MergePilot\MergePilot\bin\Debug\net8.0-windows10.0.26100.0\WinRT.Runtime.dll
 D:\work\office_work\US-Bangla\gitlab\MergePilot\MergePilot\obj\Debug\net8.0-windows10.0.26100.0\MergePilot.csproj.AssemblyReference.cache
+D:\work\office_work\US-Bangla\gitlab\MergePilot\MergePilot\obj\Debug\net8.0-windows10.0.26100.0\LogWindow.baml
 D:\work\office_work\US-Bangla\gitlab\MergePilot\MergePilot\obj\Debug\net8.0-windows10.0.26100.0\MainWindow.baml
 D:\work\office_work\US-Bangla\gitlab\MergePilot\MergePilot\obj\Debug\net8.0-windows10.0.26100.0\SplashScreen.baml
 D:\work\office_work\US-Bangla\gitlab\MergePilot\MergePilot\obj\Debug\net8.0-windows10.0.26100.0\Window2.baml
+D:\work\office_work\US-Bangla\gitlab\MergePilot\MergePilot\obj\Debug\net8.0-windows10.0.26100.0\LogWindow.g.cs
 D:\work\office_work\US-Bangla\gitlab\MergePilot\MergePilot\obj\Debug\net8.0-windows10.0.26100.0\MainWindow.g.cs
 D:\work\office_work\US-Bangla\gitlab\MergePilot\MergePilot\obj\Debug\net8.0-windows10.0.26100.0\SplashScreen.g.cs
 D:\work\office_work\US-Bangla\gitlab\MergePilot\MergePilot\obj\Debug\net8.0-windows10.0.26100.0\Window2.g.cs
