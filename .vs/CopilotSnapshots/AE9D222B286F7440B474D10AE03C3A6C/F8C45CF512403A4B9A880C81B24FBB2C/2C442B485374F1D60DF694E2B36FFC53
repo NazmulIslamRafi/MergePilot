@@ -1,0 +1,69 @@
+﻿using MahApps.Metro.Controls;
+using System.Windows;
+
+namespace MergePilot
+{
+    public partial class LogWindow : MetroWindow
+    {
+        public LogWindow()
+        {
+            InitializeComponent();
+        }
+
+        public void SetText(string text)
+        {
+            LogTextBox.Text = text;
+            LogTextBox.CaretIndex = LogTextBox.Text.Length;
+            LogTextBox.ScrollToEnd();
+        }
+
+        public void AppendText(string text)
+        {
+            LogTextBox.AppendText(text);
+            LogTextBox.CaretIndex = LogTextBox.Text.Length;
+            LogTextBox.ScrollToEnd();
+        }
+
+        public void ClearText()
+        {
+            LogTextBox.Clear();
+        }
+
+        public void TrimToMaxChars(int maxChars)
+        {
+            if (LogTextBox.Text.Length > maxChars)
+            {
+                LogTextBox.Text = LogTextBox.Text.Substring(LogTextBox.Text.Length - maxChars);
+                LogTextBox.CaretIndex = LogTextBox.Text.Length;
+                LogTextBox.ScrollToEnd();
+            }
+        }
+
+        private void BtnClear_Click(object sender, RoutedEventArgs e)
+        {
+            LogTextBox.Clear();
+        }
+
+        private void BtnSave_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new Microsoft.Win32.SaveFileDialog()
+            {
+                Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
+                DefaultExt = "txt",
+                FileName = "log.txt"
+            };
+
+            if (dlg.ShowDialog(this) == true)
+            {
+                try
+                {
+                    System.IO.File.WriteAllText(dlg.FileName, LogTextBox.Text);
+                }
+                catch (System.Exception ex)
+                {
+                    System.Windows.MessageBox.Show(this, $"Failed to save log: {ex.Message}", "Save Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+    }
+}

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -12,6 +13,7 @@ using System.Windows.Threading;
 using MahApps.Metro.Controls;
 using CheckBox = System.Windows.Controls.CheckBox;
 using MaterialDesignThemes.Wpf;
+using System.Text.Json;
 
 namespace MergePilot
 {
@@ -21,8 +23,13 @@ namespace MergePilot
         private readonly ConcurrentQueue<string> _errorQueue = new();
         private readonly DispatcherTimer _logFlushTimer;
         private const int MaxLogChars = 200_000; // cap to keep UI responsive
-        private LogWindow _outputLogWindow;
-        private LogWindow _errorLogWindow;
+        private LogWindow? _logWindow;
+        private bool _autoOpenLogs = true;
+        private bool _useTextLogSymbols = true;
+
+        private bool _streamLogsToFile = false;
+        private StreamWriter? _logFileWriter;
+        private AppSettings _settings;
 
         public MainWindow()
         {
@@ -35,13 +42,28 @@ namespace MergePilot
             _logFlushTimer.Tick += (s, e) => FlushLogQueues();
             _logFlushTimer.Start();
 
-            // create detached log windows but don't show until requested
+            // create detached single log window but don't show until requested
             try
             {
-                _outputLogWindow = new LogWindow() { Owner = this, Title = "Output Log" };
-                _errorLogWindow = new LogWindow() { Owner = this, Title = "Error Log" };
+                _logWindow = new LogWindow() { Owner = this, Title = "Logs" };
             }
             catch { /* ignore if UI initialization not ready */ }
+            // register keyboard shortcuts
+            this.InputBindings.Add(new System.Windows.Input.KeyBinding(new RelayCommand(_ => OpenLogWindow_Click(null, null)), System.Windows.Input.Key.O, System.Windows.Input.ModifierKeys.Control));
+            this.InputBindings.Add(new System.Windows.Input.KeyBinding(new RelayCommand(_ => OpenLogWindow_Click(null, null)), System.Windows.Input.Key.E, System.Windows.Input.ModifierKeys.Control));
+
+            // load settings
+            _settings = AppSettings.Load();
+            _autoOpenLogs = _settings.AutoOpenLogs;
+            chkAutoOpen.IsChecked = _autoOpenLogs;
+            txtLogPath.Text = _settings.LogFilePath ?? string.Empty;
+            sldFlushInterval.Value = _settings.FlushIntervalMs > 0 ? _settings.FlushIntervalMs : 200;
+            txtFlushValue.Text = sldFlushInterval.Value.ToString();
+            if (_settings.StreamLogs && !string.IsNullOrWhiteSpace(_settings.LogFilePath))
+            {
+                chkStreamLogs.IsChecked = true;
+                StartStreamLogs(_settings.LogFilePath);
+            }
         }
 
         private async void Merge_Click(object sender, RoutedEventArgs e)
@@ -241,18 +263,8 @@ namespace MergePilot
                     ButtonProgressAssist.SetIsIndeterminate(btnMerge, false);
                     btnMerge.IsEnabled = true;
                 });
-
-                // Final summary
-                AppendOutput("\n=== FINAL SUMMARY ===");
-                AppendOutput($"✅ SUCCESSFUL MERGES ({successList.Count}):");
-                foreach (var s in successList) AppendOutput($"  ✔ {s}");
-
-                AppendOutput($"\n⏭ SKIPPED ({skipList.Count}):");
-                foreach (var s in skipList) AppendOutput($"  ⏭ {s}");
-
-                AppendOutput($"\n❌ FAILED ({failList.Count}):");
-                foreach (var f in failList) AppendError($"  ❌ {f}");
-
+                // Final summary (log to single log window)
+                GenerateAndLogSummary("Merge Summary", successList, skipList, failList);
                 AppendOutput("\nMerging finished.");
             }
         }
@@ -272,6 +284,9 @@ namespace MergePilot
 
             try
             {
+                var successList = new List<string>();
+                var skipList = new List<string>();
+                var failList = new List<string>();
                 var repoPaths = GetSelectedRepositories();
                 var targetEnvs = GetSelectedEnvironments();
                 var clientBranches = GetClientBranch();
@@ -304,13 +319,29 @@ namespace MergePilot
                         {
                             var result = await GitHelper.EnsureBranchLatestAsync(repo, branch, cts.Token);
                             if (result.IsSuccess)
-                                AppendOutput($"✔ {result.Message}");
+                            {
+                                // detect skip vs update/create from message
+                                if (!string.IsNullOrEmpty(result.Message) && result.Message.Contains("already up-to-date", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    AppendOutput($"⏭ {result.Message}");
+                                    skipList.Add($"{repo} | {branch}");
+                                }
+                                else
+                                {
+                                    AppendOutput($"✔ {result.Message}");
+                                    successList.Add($"{repo} | {branch}");
+                                }
+                            }
                             else
+                            {
                                 AppendError($"❌ {result.Message}");
+                                failList.Add($"{repo} | {branch} | {result.Message}");
+                            }
                         }
                         catch (Exception ex)
                         {
                             AppendError($"❌ Exception while updating '{branch}': {ex.Message}");
+                            failList.Add($"{repo} | {branch} | exception");
                         }
                     }
 
@@ -318,6 +349,9 @@ namespace MergePilot
                 }
 
                 AppendOutput("Branch update run finished.");
+
+                // Final summary for pull operation
+                GenerateAndLogSummary("Pull Branches Summary", successList, skipList, failList);
             }
             finally
             {
@@ -449,7 +483,11 @@ namespace MergePilot
 
         private void ClearErrorBox_Click(object sender, RoutedEventArgs e)
         {
-            ErrorBox.Clear();
+            try
+            {
+                _logWindow?.ClearText();
+            }
+            catch { }
         }
 
         private void chkClientCheckUncheck_Checked(object sender, RoutedEventArgs e)
@@ -497,13 +535,28 @@ namespace MergePilot
                     while (_outputQueue.TryDequeue(out var item))
                         sb.Append(item);
 
-                    if (sb.Length > 0)
+                if (sb.Length > 0)
+                {
+                    var text = sb.ToString();
+                    try
                     {
-                        var text = sb.ToString();
-                        OutputBox.AppendText(text);
-                        OutputBox.ScrollToEnd();
-                        try { _outputLogWindow?.AppendText(text); } catch { }
+                        if (_logWindow == null)
+                            _logWindow = new LogWindow() { Owner = this, Title = "Logs" };
+                        _logWindow.AppendText(text);
+                        if (_autoOpenLogs)
+                        {
+                            _logWindow.Show();
+                            _logWindow.Activate();
+                        }
+                        if (_streamLogsToFile && _logFileWriter != null)
+                        {
+                            _logFileWriter.Write(text);
+                            _logFileWriter.Flush();
+                        }
+                        _logWindow.TrimToMaxChars(MaxLogChars);
                     }
+                    catch { }
+                }
                 }
 
                 if (_errorQueue.Count > 0)
@@ -512,28 +565,36 @@ namespace MergePilot
                     while (_errorQueue.TryDequeue(out var item))
                         sb2.Append(item);
 
-                    if (sb2.Length > 0)
+                if (sb2.Length > 0)
+                {
+                    var text2 = sb2.ToString();
+                    try
                     {
-                        var text2 = sb2.ToString();
-                        ErrorBox.AppendText(text2);
-                        ErrorBox.ScrollToEnd();
-                        try { _errorLogWindow?.AppendText(text2); } catch { }
+                        if (_logWindow == null)
+                            _logWindow = new LogWindow() { Owner = this, Title = "Logs" };
+                        _logWindow.AppendText(text2);
+                        if (_autoOpenLogs)
+                        {
+                            _logWindow.Show();
+                            _logWindow.Activate();
+                        }
+                        if (_streamLogsToFile && _logFileWriter != null)
+                        {
+                            _logFileWriter.Write(text2);
+                            _logFileWriter.Flush();
+                        }
+                        _logWindow.TrimToMaxChars(MaxLogChars);
                     }
+                    catch { }
+                }
                 }
 
-                // Trim if logs grow too large
-                if (OutputBox.Text.Length > MaxLogChars)
+                // Trim detached window if it exists
+                try
                 {
-                    OutputBox.Text = OutputBox.Text.Substring(OutputBox.Text.Length - MaxLogChars);
-                    OutputBox.CaretIndex = OutputBox.Text.Length;
-                    OutputBox.ScrollToEnd();
+                    _logWindow?.TrimToMaxChars(MaxLogChars);
                 }
-                if (ErrorBox.Text.Length > MaxLogChars)
-                {
-                    ErrorBox.Text = ErrorBox.Text.Substring(ErrorBox.Text.Length - MaxLogChars);
-                    ErrorBox.CaretIndex = ErrorBox.Text.Length;
-                    ErrorBox.ScrollToEnd();
-                }
+                catch { }
             }
             catch
             {
@@ -541,28 +602,145 @@ namespace MergePilot
             }
         }
 
-        private void OpenOutputWindow_Click(object sender, RoutedEventArgs e)
+        private void OpenLogWindow_Click(object sender, RoutedEventArgs e)
+        {
+            OpenLogWindow();
+        }
+
+        private void chkAutoOpen_Checked(object sender, RoutedEventArgs e)
+        {
+            _autoOpenLogs = true;
+            _settings.AutoOpenLogs = true;
+            _settings.Save();
+        }
+
+        private void chkAutoOpen_Unchecked(object sender, RoutedEventArgs e)
+        {
+            _autoOpenLogs = false;
+            _settings.AutoOpenLogs = false;
+            _settings.Save();
+        }
+
+        private void chkStreamLogs_Checked(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(txtLogPath.Text))
+                SelectLogPath();
+
+            if (!string.IsNullOrWhiteSpace(txtLogPath.Text))
+                StartStreamLogs(txtLogPath.Text);
+            _settings.StreamLogs = true;
+            _settings.LogFilePath = txtLogPath.Text;
+            _settings.Save();
+        }
+
+        private void chkStreamLogs_Unchecked(object sender, RoutedEventArgs e)
+        {
+            StopStreamLogs();
+            _settings.StreamLogs = false;
+            _settings.Save();
+        }
+
+        private void SelectLogPath_Click(object sender, RoutedEventArgs e) => SelectLogPath();
+
+        private void SelectLogPath()
+        {
+            var dlg = new Microsoft.Win32.SaveFileDialog()
+            {
+                Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
+                DefaultExt = "txt",
+                FileName = "mergepilot.log"
+            };
+
+            if (dlg.ShowDialog(this) == true)
+            {
+                txtLogPath.Text = dlg.FileName;
+                _settings.LogFilePath = dlg.FileName;
+                _settings.Save();
+            }
+        }
+
+        private void sldFlushInterval_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (txtFlushValue != null)
+                txtFlushValue.Text = ((int)sldFlushInterval.Value).ToString();
+
+            if (_logFlushTimer != null)
+                _logFlushTimer.Interval = TimeSpan.FromMilliseconds((int)sldFlushInterval.Value);
+
+            if (_settings != null)
+            {
+                _settings.FlushIntervalMs = (int)sldFlushInterval.Value;
+                _settings.Save();
+            }
+        }
+
+        private void OpenLogWindow()
         {
             try
             {
-                if (_outputLogWindow == null)
-                    _outputLogWindow = new LogWindow() { Owner = this, Title = "Output Log" };
+                if (_logWindow == null)
+                    _logWindow = new LogWindow() { Owner = this, Title = "Logs" };
 
-                _outputLogWindow.Show();
-                _outputLogWindow.Activate();
+                _logWindow.Show();
+                _logWindow.Activate();
             }
             catch { }
         }
 
-        private void OpenErrorWindow_Click(object sender, RoutedEventArgs e)
+        private void GenerateAndLogSummary(string title, List<string> success, List<string> skipped, List<string> failed)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine();
+            sb.AppendLine($"=== {title} ===");
+            sb.AppendLine($"Timestamp: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            sb.AppendLine($"✅ SUCCESSFUL ({success.Count}):");
+            if (success.Count > 0)
+            {
+                foreach (var s in success) sb.AppendLine($"  ✔ {s}");
+            }
+            else sb.AppendLine("  None");
+
+            sb.AppendLine();
+            sb.AppendLine($"⏭ SKIPPED ({skipped.Count}):");
+            if (skipped.Count > 0)
+            {
+                foreach (var s in skipped) sb.AppendLine($"  ⏭ {s}");
+            }
+            else sb.AppendLine("  None");
+
+            sb.AppendLine();
+            sb.AppendLine($"❌ FAILED ({failed.Count}):");
+            if (failed.Count > 0)
+            {
+                foreach (var f in failed) sb.AppendLine($"  ❌ {f}");
+            }
+            else sb.AppendLine("  None");
+
+            var summary = sb.ToString();
+            AppendOutput(summary);
+            AppendError(summary);
+        }
+
+        // Toggle streaming to files
+        private void StartStreamLogs(string path)
         {
             try
             {
-                if (_errorLogWindow == null)
-                    _errorLogWindow = new LogWindow() { Owner = this, Title = "Error Log" };
+                _logFileWriter?.Dispose();
+                _logFileWriter = new StreamWriter(new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read)) { AutoFlush = true };
+                _streamLogsToFile = true;
+            }
+            catch { }
+        }
 
-                _errorLogWindow.Show();
-                _errorLogWindow.Activate();
+        private void StopStreamLogs()
+        {
+            try
+            {
+                _logFileWriter?.Flush();
+                _logFileWriter?.Dispose();
+                _logFileWriter = null;
+                _streamLogsToFile = false;
             }
             catch { }
         }

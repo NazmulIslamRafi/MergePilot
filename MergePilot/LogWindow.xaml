@@ -8,7 +8,17 @@
                       GlowBrush="#60A5FA">
 
     <Grid Margin="8">
-        <Border CornerRadius="8" Background="#0F1720" Padding="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Orientation="Horizontal" Grid.Row="0" HorizontalAlignment="Right" Margin="0 0 0 8">
+            <Button x:Name="BtnClear" Content="Clear" Width="80" Height="28" Margin="0 0 8 0" Click="BtnClear_Click" />
+            <Button x:Name="BtnSave" Content="Save..." Width="80" Height="28" Click="BtnSave_Click" />
+        </StackPanel>
+
+        <Border Grid.Row="1" CornerRadius="8" Background="#0F1720" Padding="8">
             <TextBox x:Name="LogTextBox"
                      Foreground="#E2E8F0"
                      Background="Transparent"
