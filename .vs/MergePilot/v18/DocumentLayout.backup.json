@@ -7,19 +7,15 @@
       "RelativeMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|solutionrelative:mergepilot\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|d:\\work\\office_work\\us-bangla\\gitlab\\mergepilot\\mergepilot\\logwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
-      "RelativeMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|solutionrelative:mergepilot\\logwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|d:\\work\\office_work\\us-bangla\\gitlab\\mergepilot\\mergepilot\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|solutionrelative:mergepilot\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Md Nazmul Islam\\AppData\\Local\\Temp\\CopilotBaseline\\0a21b381\\~MainWindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|d:\\work\\office_work\\us-bangla\\gitlab\\mergepilot\\mergepilot\\appsettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|solutionrelative:mergepilot\\appsettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|d:\\work\\office_work\\us-bangla\\gitlab\\mergepilot\\mergepilot\\logwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|solutionrelative:mergepilot\\logwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Md Nazmul Islam\\AppData\\Local\\Temp\\CopilotBaseline\\0a21b381\\~MainWindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|d:\\work\\office_work\\us-bangla\\gitlab\\mergepilot\\mergepilot\\githelper.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -30,8 +26,8 @@
       "RelativeMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|solutionrelative:mergepilot\\relaycommand.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|d:\\work\\office_work\\us-bangla\\gitlab\\mergepilot\\mergepilot\\appsettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|solutionrelative:mergepilot\\appsettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|d:\\work\\office_work\\us-bangla\\gitlab\\mergepilot\\mergepilot\\widthtoboolconverter.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|solutionrelative:mergepilot\\widthtoboolconverter.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -41,46 +37,34 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 3,
+          "SelectedChildIndex": 2,
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 4,
               "Title": "GitHelper.cs",
               "DocumentMoniker": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\GitHelper.cs",
               "RelativeDocumentMoniker": "MergePilot\\GitHelper.cs",
               "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\GitHelper.cs",
               "RelativeToolTip": "MergePilot\\GitHelper.cs",
-              "ViewState": "AgIAAI8AAAAAAAAAAAAiwAoAAAAUAAAAAAAAAA==",
+              "ViewState": "AgIAADwAAAAAAAAAAIBQwAoAAAAUAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-02-19T17:36:31.299Z",
-              "IsPinned": true
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "MainWindow.xaml.cs",
-              "DocumentMoniker": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\MainWindow.xaml.cs",
-              "RelativeDocumentMoniker": "MergePilot\\MainWindow.xaml.cs",
-              "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\MainWindow.xaml.cs",
-              "RelativeToolTip": "MergePilot\\MainWindow.xaml.cs",
-              "ViewState": "AgIAADQAAAAAAAAAAABBwOsCAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-19T17:27:42.632Z",
               "IsPinned": true,
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 7,
-              "Title": "AppSettings.cs",
-              "DocumentMoniker": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\AppSettings.cs",
-              "RelativeDocumentMoniker": "MergePilot\\AppSettings.cs",
-              "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\AppSettings.cs",
-              "RelativeToolTip": "MergePilot\\AppSettings.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAC0AAAAAAAAAAAAAAA==",
+              "DocumentIndex": 1,
+              "Title": "MainWindow.xaml.cs",
+              "DocumentMoniker": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\MainWindow.xaml.cs",
+              "RelativeDocumentMoniker": "MergePilot\\MainWindow.xaml.cs",
+              "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\MainWindow.xaml.cs",
+              "RelativeToolTip": "MergePilot\\MainWindow.xaml.cs",
+              "ViewState": "AgIAAJkFAAAAAAAAAAAIwGwEAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-20T10:29:58.701Z",
+              "WhenOpened": "2026-02-19T17:27:42.632Z",
+              "IsPinned": true,
               "EditorCaption": ""
             },
             {
@@ -98,6 +82,32 @@
             {
               "$type": "Document",
               "DocumentIndex": 6,
+              "Title": "WidthToBoolConverter.cs",
+              "DocumentMoniker": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\WidthToBoolConverter.cs",
+              "RelativeDocumentMoniker": "MergePilot\\WidthToBoolConverter.cs",
+              "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\WidthToBoolConverter.cs",
+              "RelativeToolTip": "MergePilot\\WidthToBoolConverter.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAB4AAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-26T03:07:02.054Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "AppSettings.cs",
+              "DocumentMoniker": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\AppSettings.cs",
+              "RelativeDocumentMoniker": "MergePilot\\AppSettings.cs",
+              "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\AppSettings.cs",
+              "RelativeToolTip": "MergePilot\\AppSettings.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAA3AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-20T10:29:58.701Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
               "Title": "RelayCommand.cs",
               "DocumentMoniker": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\RelayCommand.cs",
               "RelativeDocumentMoniker": "MergePilot\\RelayCommand.cs",
@@ -109,36 +119,14 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "LogWindow.xaml.cs",
-              "DocumentMoniker": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\LogWindow.xaml.cs",
-              "RelativeDocumentMoniker": "MergePilot\\LogWindow.xaml.cs",
-              "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\LogWindow.xaml.cs",
-              "RelativeToolTip": "MergePilot\\LogWindow.xaml.cs",
-              "ViewState": "AgIAAAEAAAAAAAAAAIBJwGMAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-20T04:13:45.024Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "LogWindow.xaml",
-              "DocumentMoniker": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\LogWindow.xaml",
-              "RelativeDocumentMoniker": "MergePilot\\LogWindow.xaml",
-              "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\LogWindow.xaml",
-              "RelativeToolTip": "MergePilot\\LogWindow.xaml",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2026-02-20T04:13:34.686Z"
-            },
-            {
-              "$type": "Document",
               "DocumentIndex": 3,
               "Title": "~MainWindow.xaml.cs",
               "DocumentMoniker": "C:\\Users\\Md Nazmul Islam\\AppData\\Local\\Temp\\CopilotBaseline\\0a21b381\\~MainWindow.xaml.cs",
               "ToolTip": "C:\\Users\\Md Nazmul Islam\\AppData\\Local\\Temp\\CopilotBaseline\\0a21b381\\~MainWindow.xaml.cs",
               "ViewState": "AgIAAL8AAAAAAAAAAAASwMsAAAAoAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-20T04:07:29.319Z"
+              "WhenOpened": "2026-02-20T04:07:29.319Z",
+              "EditorCaption": ""
             }
           ]
         },

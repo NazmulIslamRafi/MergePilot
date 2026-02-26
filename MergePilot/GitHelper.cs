@@ -23,7 +23,43 @@ namespace MergePilot
 
     public static class GitHelper
     {
-        private static async Task<CommandResult> RunGitCommandAsync(
+        /// <summary>
+        /// Returns the default remote name for the repository (first remote from `git remote`), falls back to "origin" when none found.
+        /// </summary>
+        public static async Task<string> GetDefaultRemoteNameAsync(string repoPath, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var res = await RunGitCommandAsync(repoPath, "remote", TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false);
+                if (!res.IsSuccess || string.IsNullOrWhiteSpace(res.StdOut))
+                    return "origin";
+
+                var first = res.StdOut.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).FirstOrDefault();
+                return string.IsNullOrWhiteSpace(first) ? "origin" : first!;
+            }
+            catch
+            {
+                return "origin";
+            }
+        }
+
+        /// <summary>
+        /// Returns true if the specified branch exists on the given remote for the repository (via ls-remote).
+        /// </summary>
+        public static async Task<bool> RemoteBranchExistsAsync(string repoPath, string remoteName, string branch, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(branch)) return false;
+            try
+            {
+                var res = await RunGitCommandAsync(repoPath, $"ls-remote --heads {remoteName} {branch}", TimeSpan.FromSeconds(20), cancellationToken).ConfigureAwait(false);
+                return res.IsSuccess && !string.IsNullOrWhiteSpace(res.StdOut);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        internal static async Task<CommandResult> RunGitCommandAsync(
             string repoPath,
             string arguments,
             TimeSpan? timeout = null,

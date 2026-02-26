@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Collections.Generic;
 
 namespace MergePilot
 {
@@ -10,6 +11,32 @@ namespace MergePilot
         public bool StreamLogs { get; set; } = false;
         public string? LogFilePath { get; set; }
         public int FlushIntervalMs { get; set; } = 200;
+
+        // Dynamic repository list saved by the app
+        public List<RepositoryEntry> Repositories { get; set; } = new();
+        // Recently discovered or used branches (persisted across sessions)
+        public List<string> RecentBranches { get; set; } = new();
+        // Optionally persist last used source/target
+        public string? LastSourceBranch { get; set; }
+        public string? LastTargetBranch { get; set; }
+        // Persist whether inline logs are visible
+        public bool InlineLogsVisible { get; set; } = false;
+        // Persist whether output pane shows errors-only filter
+        public bool OutputErrorsOnly { get; set; } = false;
+        // Persist last search terms
+        public string? LastSearchOutput { get; set; }
+        public string? LastSearchError { get; set; }
+        // Log appearance settings
+        public double LogFontSize { get; set; } = 13.0;
+        public int LogMaxChars { get; set; } = 200000;
+
+        public class RepositoryEntry
+        {
+            public string? Name { get; set; }
+            public string? Path { get; set; }
+            // Optional remote URL or metadata
+            public string? RemoteUrl { get; set; }
+        }
 
         private static string SettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MergePilot", "settings.json");
 
@@ -21,7 +48,8 @@ namespace MergePilot
                 if (File.Exists(path))
                 {
                     var json = File.ReadAllText(path);
-                    return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+                    var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                    return JsonSerializer.Deserialize<AppSettings>(json, opts) ?? new AppSettings();
                 }
             }
             catch { }
