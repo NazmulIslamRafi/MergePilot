@@ -19,6 +19,10 @@ namespace MergePilot
         // Optionally persist last used source/target
         public string? LastSourceBranch { get; set; }
         public string? LastTargetBranch { get; set; }
+        // Persist per-branch checked state (nullable for tri-state)
+        public Dictionary<string, bool?> BranchCheckedState { get; set; } = new();
+        // Persist per-branch expansion state
+        public Dictionary<string, bool> BranchExpandedState { get; set; } = new();
         // Persist whether inline logs are visible
         public bool InlineLogsVisible { get; set; } = false;
         // Persist whether output pane shows errors-only filter
