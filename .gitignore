@@ -21,3 +21,5 @@ MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot_MarkupCompile.i.lref
 bin/
 obj/
 .vs/
+/MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot.AssemblyInfo.cs
+/MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot.AssemblyInfoInputs.cache
