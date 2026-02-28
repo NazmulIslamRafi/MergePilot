@@ -12,9 +12,9 @@ using System;
 using System.Reflection;
 
 [assembly: System.Reflection.AssemblyCompanyAttribute("MergePilot")]
-[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ec91191f1ce6c350603d5eabaa7b5c752041088c")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d6679ba61d009e3b2d0de30adacdff727b118492")]
 [assembly: System.Reflection.AssemblyProductAttribute("MergePilot")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MergePilot")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
