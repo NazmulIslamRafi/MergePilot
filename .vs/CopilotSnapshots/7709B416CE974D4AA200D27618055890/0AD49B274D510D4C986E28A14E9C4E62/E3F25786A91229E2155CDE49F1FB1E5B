@@ -1,0 +1,1506 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Threading;
+using MahApps.Metro.Controls;
+using CheckBox = System.Windows.Controls.CheckBox;
+using MaterialDesignThemes.Wpf;
+using System.Text.Json;
+using System.Windows.Forms; // used for FolderBrowserDialog
+using Microsoft.VisualBasic; // used for simple input dialogs
+using System.Windows.Input;
+
+namespace MergePilot
+{
+    public partial class MainWindow : MetroWindow
+    {
+        private readonly ConcurrentQueue<string> _outputQueue = new();
+        private readonly ConcurrentQueue<string> _errorQueue = new();
+        private readonly DispatcherTimer _logFlushTimer;
+        private const int MaxLogChars = 200_000; // cap to keep UI responsive
+        // Inline log boxes in main window (OutputBox and ErrorBox defined in XAML)
+        private bool _autoOpenLogs = true;
+        private bool _useTextLogSymbols = true;
+
+        private bool _streamLogsToFile = false;
+        private StreamWriter? _logFileWriter;
+        private AppSettings _settings;
+        // master buffers for non-destructive filtering/search
+        private StringBuilder _outputMaster = new();
+        private StringBuilder _errorMaster = new();
+        private List<int> _outputMatchIndexes = new();
+        private int _outputCurrentMatch = -1;
+        private List<int> _errorMatchIndexes = new();
+        private int _errorCurrentMatch = -1;
+
+        public MainWindow()
+        {
+            InitializeComponent();
+
+            // initial UI state and timers
+            ValidateSelections();
+            _logFlushTimer = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(200)
+            };
+            _logFlushTimer.Tick += (s, e) => FlushLogQueues();
+            _logFlushTimer.Start();
+
+            // register keyboard shortcuts
+            this.InputBindings.Add(new KeyBinding(new RelayCommand(_ => Merge_Click(null, null)), Key.M, ModifierKeys.Control));
+            this.InputBindings.Add(new KeyBinding(new RelayCommand(_ => PullSelectedBranches_Click(null, null)), Key.P, ModifierKeys.Control));
+            this.InputBindings.Add(new KeyBinding(new RelayCommand(_ => RefreshBranches_Click(null, null)), Key.R, ModifierKeys.Control));
+            this.InputBindings.Add(new KeyBinding(new RelayCommand(_ => ManageRepos_Click(null, null)), Key.B, ModifierKeys.Control));
+            this.InputBindings.Add(new KeyBinding(new RelayCommand(_ => ToggleLogs()), Key.L, ModifierKeys.Control));
+            this.PreviewKeyDown += MainWindow_PreviewKeyDown;
+
+            // register log shortcuts (save/copy/clear)
+            RegisterLogShortcuts();
+
+            // load settings and apply
+            _settings = AppSettings.Load();
+            _autoOpenLogs = _settings.AutoOpenLogs;
+            chkAutoOpen.IsChecked = _autoOpenLogs;
+            if (_settings.StreamLogs && !string.IsNullOrWhiteSpace(_settings.LogFilePath))
+            {
+                chkStreamLogs.IsChecked = true;
+                StartStreamLogs(_settings.LogFilePath);
+            }
+
+            // populate last used branches
+            if (!string.IsNullOrWhiteSpace(_settings.LastSourceBranch))
+                SourceBranchBox.Text = _settings.LastSourceBranch;
+            if (!string.IsNullOrWhiteSpace(_settings.LastTargetBranch))
+                TargetBranchBox.Text = _settings.LastTargetBranch;
+
+            // populate dynamic repositories from settings
+            PopulateRepositoriesFromSettings();
+
+            // restore inline log visibility and appearance
+            try
+            {
+                // Note: LogBorder visibility now handled by overall UI layout
+                if (_settings.LogFontSize > 0)
+                {
+                    OutputBox.FontSize = _settings.LogFontSize;
+                }
+            }
+            catch { }
+        }
+
+        private void MainWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            try
+            {
+                var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+                if (key == System.Windows.Input.Key.E && (System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Shift) == System.Windows.Input.ModifierKeys.Shift)
+                {
+                    ToggleLogs();
+                    e.Handled = true;
+                }
+            }
+            catch { }
+        }
+
+        private void LstRepos_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            try
+            {
+                if (lstRepos == null) return;
+
+                // ListView holds AppSettings.RepositoryEntry objects as items
+                if (lstRepos.SelectedItem is AppSettings.RepositoryEntry repo && !string.IsNullOrWhiteSpace(repo.Path))
+                {
+                    try
+                    {
+                        foreach (var child in DynamicRepoPanel.Children)
+                        {
+                            if (child is CheckBox cb && cb.Tag is string cbPath && string.Equals(cbPath, repo.Path, StringComparison.OrdinalIgnoreCase))
+                            {
+                                cb.IsChecked = true;
+                                cb.BringIntoView();
+                                break;
+                            }
+                        }
+                    }
+                    catch { }
+
+                    try { lstRepos.ScrollIntoView(repo); /* focus not needed */ } catch { }
+                }
+            }
+            catch { }
+        }
+
+        private void BrowseRepoPath_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                using var dlg = new FolderBrowserDialog();
+                dlg.Description = "Select repository folder (should contain .git)";
+                dlg.UseDescriptionForTitle = true;
+                var res = dlg.ShowDialog();
+                if (res == System.Windows.Forms.DialogResult.OK || res == System.Windows.Forms.DialogResult.Yes)
+                {
+                    txtRepoPath.Text = dlg.SelectedPath;
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendError($"Folder picker failed: {ex.Message}");
+            }
+        }
+
+        private void PopulateRepositoriesFromSettings()
+        {
+            try
+            {
+                DynamicRepoPanel.Children.Clear();
+                lstRepos?.Items.Clear();
+                foreach (var repo in _settings.Repositories ?? new System.Collections.Generic.List<AppSettings.RepositoryEntry>())
+                {
+                    var cb = new CheckBox
+                    {
+                        Content = repo.Name ?? repo.Path,
+                        Tag = repo.Path,
+                        Foreground = BrushFromHex("#CBD5E1"),
+                        Margin = new System.Windows.Thickness(0, 0, 15, 0)
+                    };
+                    cb.Checked += CheckBox_Changed;
+                    cb.Unchecked += CheckBox_Changed;
+                    DynamicRepoPanel.Children.Add(cb);
+                    // Add ListBoxItem with Tag set to path so selection can map back to dynamic checkbox
+                    try
+                    {
+                        if (lstRepos != null)
+                        {
+                            lstRepos.Items.Add(repo);
+                        }
+                    }
+                    catch { }
+                }
+
+                // Load recent branches into ListBoxes
+                RefreshBranchLists();
+            }
+            catch (Exception ex)
+            {
+                AppendError($"PopulateRepositoriesFromSettings failed: {ex.Message}");
+            }
+        }
+
+        private void RefreshBranchLists()
+        {
+            try
+            {
+                SourceBranchBox.Items.Clear();
+                TargetBranchBox.Items.Clear();
+
+                // Get selected repositories
+                var selectedRepos = GetSelectedRepositories();
+                if (selectedRepos.Count == 0)
+                {
+                    return; // No repos selected
+                }
+
+                // Collect branches from all selected repositories
+                var allBranches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var repo in selectedRepos)
+                {
+                    try
+                    {
+                        var branches = GitHelper.GetLocalBranchesAsync(repo).Result;
+                        foreach (var branch in branches)
+                        {
+                            allBranches.Add(branch);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AppendError($"Failed to load branches from {repo}: {ex.Message}");
+                    }
+                }
+
+                // Add branches to ListBoxes sorted
+                foreach (var branch in allBranches.OrderBy(b => b))
+                {
+                    SourceBranchBox.Items.Add(branch);
+                    TargetBranchBox.Items.Add(branch);
+                }
+
+                ValidateSelections();
+            }
+            catch (Exception ex)
+            {
+                AppendError($"RefreshBranchLists failed: {ex.Message}");
+            }
+        }
+
+        // Helper to convert hex color to brush
+        private static System.Windows.Media.Brush BrushFromHex(string hex)
+        {
+            try
+            {
+                var conv = new System.Windows.Media.BrushConverter();
+                return (System.Windows.Media.Brush?)conv.ConvertFromString(hex) ?? System.Windows.Media.Brushes.White;
+            }
+            catch
+            {
+                return System.Windows.Media.Brushes.White;
+            }
+        }
+
+        private void ManageRepos_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Toggle visibility of management panel
+                if (RepoManagePanel.Visibility == Visibility.Visible)
+                {
+                    RepoManagePanel.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    RepoManagePanel.Visibility = Visibility.Visible;
+                    // populate list
+                    lstRepos.Items.Clear();
+                    foreach (var r in _settings.Repositories ?? new System.Collections.Generic.List<AppSettings.RepositoryEntry>())
+                    {
+                        try
+                        {
+                            lstRepos.Items.Add(r);
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendError($"Failed to open repo manager: {ex.Message}");
+            }
+        }
+
+        private void EditRepo_Click(object sender, RoutedEventArgs e)
+        {
+            if (lstRepos.SelectedIndex < 0)
+            {
+                System.Windows.MessageBox.Show("Select a repository to edit.", "No selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            // Map selected ListViewItem back to settings entry
+            var idx = lstRepos.SelectedIndex;
+            var entry = _settings.Repositories?[idx];
+            try
+            {
+                if (lstRepos.SelectedItem is AppSettings.RepositoryEntry r)
+                {
+                    var found = _settings.Repositories?.Find(rr => string.Equals(rr.Path, r.Path, StringComparison.OrdinalIgnoreCase));
+                    if (found != null) entry = found;
+                }
+            }
+            catch { }
+            // populate fields for editing
+            txtRepoName.Text = entry?.Name ?? string.Empty;
+            txtRepoPath.Text = entry?.Path ?? string.Empty;
+            btnUpdateRepo.IsEnabled = true;
+            btnAddRepo.IsEnabled = false;
+        }
+
+        private void UpdateRepo_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (lstRepos.SelectedIndex < 0)
+                {
+                    System.Windows.MessageBox.Show("Select a repository to update.", "No selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                var idx = lstRepos.SelectedIndex;
+                var name = txtRepoName?.Text?.Trim();
+                var path = txtRepoPath?.Text?.Trim();
+                if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(path))
+                {
+                    System.Windows.MessageBox.Show("Name and path are required.", "Invalid input", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // validation: ensure .git exists
+                if (!Directory.Exists(System.IO.Path.Combine(path, ".git")))
+                {
+                    var res = System.Windows.MessageBox.Show("The selected path does not contain a .git folder. Add anyway?", "Git folder not found", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    if (res != MessageBoxResult.Yes)
+                        return;
+                }
+
+                if (_settings.Repositories != null && idx >= 0 && idx < _settings.Repositories.Count)
+                {
+                    _settings.Repositories[idx].Name = name;
+                    _settings.Repositories[idx].Path = path;
+                }
+                _settings.Save();
+                PopulateRepositoriesFromSettings();
+                lstRepos.SelectedIndex = idx;
+                txtRepoName.Text = string.Empty;
+                txtRepoPath.Text = string.Empty;
+                btnUpdateRepo.IsEnabled = false;
+                btnAddRepo.IsEnabled = true;
+            }
+            catch (Exception ex)
+            {
+                AppendError($"Failed to update repository: {ex.Message}");
+            }
+        }
+
+        private void AddRepo_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var name = txtRepoName?.Text?.Trim();
+                var path = txtRepoPath?.Text?.Trim();
+                if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(path))
+                {
+                    System.Windows.MessageBox.Show("Repo name and path are required.", "Invalid input", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // validation: ensure .git exists
+                if (!Directory.Exists(System.IO.Path.Combine(path, ".git")))
+                {
+                    var res = System.Windows.MessageBox.Show("The selected path does not contain a .git folder. Add anyway?", "Git folder not found", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    if (res != MessageBoxResult.Yes)
+                        return;
+                }
+
+                _settings.Repositories ??= new System.Collections.Generic.List<AppSettings.RepositoryEntry>();
+                var newEntry = new AppSettings.RepositoryEntry { Name = name, Path = path };
+                _settings.Repositories.Add(newEntry);
+                _settings.Save();
+                PopulateRepositoriesFromSettings();
+                lstRepos.Items.Add(newEntry);
+                txtRepoName.Text = string.Empty;
+                txtRepoPath.Text = string.Empty;
+            }
+            catch (Exception ex)
+            {
+                AppendError($"Failed to add repository: {ex.Message}");
+            }
+        }
+
+        private void RemoveRepo_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (lstRepos.SelectedIndex < 0)
+                {
+                    System.Windows.MessageBox.Show("Select a repository to remove.", "No selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+                var idx = lstRepos.SelectedIndex;
+                var confirm = System.Windows.MessageBox.Show($"Remove '{_settings.Repositories[idx].Name}'?", "Confirm remove", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (confirm != MessageBoxResult.Yes) return;
+
+                // remove from settings
+                if (_settings.Repositories != null && idx < _settings.Repositories.Count)
+                {
+                    _settings.Repositories.RemoveAt(idx);
+                    _settings.Save();
+                    PopulateRepositoriesFromSettings();
+                    // ensure selection reflects change
+                    if (lstRepos.Items.Count > idx) lstRepos.Items.RemoveAt(idx);
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendError($"Failed to remove repository: {ex.Message}");
+            }
+        }
+
+        private async void Merge_Click(object sender, RoutedEventArgs e)
+        {
+            var cts = new CancellationTokenSource();
+            btnMerge.IsEnabled = false;
+            ButtonProgressAssist.SetIsIndeterminate(btnMerge, true);
+
+            var successList = new List<string>();
+            var skipList = new List<string>();
+            var failList = new List<string>();
+
+            // Get single source branch
+            var sourceItem = SourceBranchBox.SelectedItem as string;
+            if (string.IsNullOrWhiteSpace(sourceItem))
+            {
+                AppendError("❌ Source branch is empty. Please select a source branch.");
+                btnMerge.IsEnabled = true;
+                ButtonProgressAssist.SetIsIndeterminate(btnMerge, false);
+                return;
+            }
+
+            // Get multiple target branches
+            var targetBranches = new List<string>();
+            if (TargetBranchBox.SelectedItems != null && TargetBranchBox.SelectedItems.Count > 0)
+            {
+                foreach (var item in TargetBranchBox.SelectedItems)
+                {
+                    if (item is string targetBranch && !string.IsNullOrWhiteSpace(targetBranch))
+                    {
+                        targetBranches.Add(targetBranch);
+                    }
+                }
+            }
+
+            if (targetBranches.Count == 0)
+            {
+                AppendError("❌ No target branches selected. Please select at least one target branch.");
+                btnMerge.IsEnabled = true;
+                ButtonProgressAssist.SetIsIndeterminate(btnMerge, false);
+                return;
+            }
+
+            var repoPaths = GetSelectedRepositories();
+            string source = sourceItem.Trim();
+
+            AppendOutput($"\n🚀 Merge Started (Retry ×3 | Auto-Skip | No Editor)");
+            AppendOutput($"Source Branch: {source}");
+            AppendOutput($"Target Branches: {string.Join(", ", targetBranches)}");
+            AppendOutput($"Repositories: {repoPaths.Count}\n");
+
+            try
+            {
+                // Persist last used branches
+                _settings.LastSourceBranch = source;
+                _settings.LastTargetBranch = string.Join("|", targetBranches);
+                _settings.Save();
+
+                foreach (var repo in repoPaths)
+                {
+                    AppendOutput($"📁 Project: {System.IO.Path.GetFileName(repo)}");
+                    AppendOutput("═".PadRight(50, '═')));
+
+                    if (!Directory.Exists(repo) || !Directory.Exists(System.IO.Path.Combine(repo, ".git")))
+                    {
+                        AppendError($"❌ Repository path not found or not a git repo: {repo}");
+                        failList.Add($"{repo} | all branches | repo not found");
+                        continue;
+                    }
+
+                    foreach (var targetBranch in targetBranches)
+                    {
+                        AppendOutput($"🔁 {System.IO.Path.GetFileName(repo)} → {targetBranch}");
+                        AppendOutput($"🕒 $(date '+%Y-%m-%d %H:%M:%S')");
+                        AppendOutput("───────────────────────────────────────────────");
+
+                        try
+                        {
+                            // Validate target branch exists on remote (using detected remote)
+                            var remoteName = await GitHelper.GetDefaultRemoteNameAsync(repo, cts.Token).ConfigureAwait(false);
+                            var existsOnRemote = await GitHelper.RemoteBranchExistsAsync(repo, remoteName, targetBranch, cts.Token).ConfigureAwait(false);
+                            if (!existsOnRemote)
+                            {
+                                var ask = Dispatcher.Invoke(() => System.Windows.MessageBox.Show($"Target branch '{targetBranch}' was not found on '{remoteName}' for repo '{repo}'.\n\nDo you want to continue anyway?", "Target branch not found", MessageBoxButton.YesNo, MessageBoxImage.Warning));
+                                if (ask != MessageBoxResult.Yes)
+                                {
+                                    failList.Add($"{repo} | {targetBranch} | target not on remote");
+                                    AppendError($"⏭ Skipped (target not on remote)");
+                                    continue;
+                                }
+                            }
+
+                            // Checkout target branch with retry
+                            bool checkoutSuccess = false;
+                            for (int attempt = 1; attempt <= 3; attempt++)
+                            {
+                                AppendOutput($"🔄 Checking out {targetBranch} (Attempt {attempt}/3)...");
+
+                                try
+                                {
+                                    await GitHelper.CheckoutBranchAsync(repo, targetBranch, cts.Token).ConfigureAwait(false);
+                                    checkoutSuccess = true;
+                                    break;
+                                }
+                                catch (Exception ex)
+                                {
+                                    if (attempt < 3)
+                                    {
+                                        await Task.Delay(2000, cts.Token).ConfigureAwait(false); // Wait 2 seconds before retry
+                                    }
+                                    else
+                                    {
+                                        AppendError($"❌ Checkout failed after 3 attempts: {ex.Message}");
+                                    }
+                                }
+                            }
+
+                            if (!checkoutSuccess)
+                            {
+                                failList.Add($"{repo} | {targetBranch} | checkout failed");
+                                continue;
+                            }
+
+                            // Pull latest with retry
+                            bool pullSuccess = false;
+                            for (int attempt = 1; attempt <= 3; attempt++)
+                            {
+                                AppendOutput($"🔄 Pulling latest (Attempt {attempt}/3)...");
+
+                                try
+                                {
+                                    await GitHelper.PullBranchAsync(repo, targetBranch, cts.Token).ConfigureAwait(false);
+                                    pullSuccess = true;
+                                    break;
+                                }
+                                catch (Exception ex)
+                                {
+                                    if (attempt < 3)
+                                    {
+                                        await Task.Delay(2000, cts.Token).ConfigureAwait(false);
+                                    }
+                                    else
+                                    {
+                                        AppendError($"❌ Pull failed after 3 attempts: {ex.Message}");
+                                    }
+                                }
+                            }
+
+                            if (!pullSuccess)
+                            {
+                                failList.Add($"{repo} | {targetBranch} | pull failed");
+                                continue;
+                            }
+
+                            // Auto skip if already merged
+                            try
+                            {
+                                var isMerged = await GitHelper.IsBranchMergedAsync(repo, remoteName, source, targetBranch, cts.Token).ConfigureAwait(false);
+                                if (isMerged)
+                                {
+                                    AppendOutput($"⏭ Source already merged — skipping");
+                                    skipList.Add($"{repo} | {targetBranch}");
+                                    continue;
+                                }
+                            }
+                            catch { }
+
+                            // Merge with retry
+                            bool mergeSuccess = false;
+                            for (int attempt = 1; attempt <= 3; attempt++)
+                            {
+                                AppendOutput($"🔄 Merging {source} into {targetBranch} (Attempt {attempt}/3)...");
+
+                                try
+                                {
+                                    await GitHelper.MergeBranchAsync(repo, remoteName, source, false, cts.Token).ConfigureAwait(false);
+                                    mergeSuccess = true;
+                                    AppendOutput($"✔ Merge successful");
+                                    break;
+                                }
+                                catch (Exception mergeEx)
+                                {
+                                    if (mergeEx.Message.Contains("conflict", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        AppendError($"❌ Merge conflict detected");
+                                        var result = Dispatcher.Invoke(() => System.Windows.MessageBox.Show($"Merge conflict in {repo}/{targetBranch}.\n\nResolve manually and continue?", "Merge Conflict", MessageBoxButton.YesNo, MessageBoxImage.Warning));
+                                        if (result == MessageBoxResult.Yes)
+                                        {
+                                            // User will resolve manually
+                                            failList.Add($"{repo} | {targetBranch} | merge conflict (manual resolution)");
+                                        }
+                                        else
+                                        {
+                                            await GitHelper.AbortMergeAsync(repo, cts.Token).ConfigureAwait(false);
+                                            failList.Add($"{repo} | {targetBranch} | merge conflict");
+                                        }
+                                        mergeSuccess = false;
+                                        break;
+                                    }
+                                    else if (attempt < 3)
+                                    {
+                                        await Task.Delay(2000, cts.Token).ConfigureAwait(false);
+                                    }
+                                    else
+                                    {
+                                        AppendError($"❌ Merge failed after 3 attempts: {mergeEx.Message}");
+                                    }
+                                }
+                            }
+
+                            if (!mergeSuccess)
+                            {
+                                continue;
+                            }
+
+                            // Push with retry
+                            bool pushSuccess = false;
+                            for (int attempt = 1; attempt <= 3; attempt++)
+                            {
+                                AppendOutput($"🔄 Pushing changes (Attempt {attempt}/3)...");
+
+                                try
+                                {
+                                    await GitHelper.PushBranchAsync(repo, targetBranch, cts.Token).ConfigureAwait(false);
+                                    pushSuccess = true;
+                                    break;
+                                }
+                                catch (Exception ex)
+                                {
+                                    if (attempt < 3)
+                                    {
+                                        await Task.Delay(2000, cts.Token).ConfigureAwait(false);
+                                    }
+                                    else
+                                    {
+                                        AppendError($"❌ Push failed after 3 attempts: {ex.Message}");
+                                    }
+                                }
+                            }
+
+                            if (!pushSuccess)
+                            {
+                                failList.Add($"{repo} | {targetBranch} | push failed");
+                                continue;
+                            }
+
+                            successList.Add($"{repo} | {targetBranch}");
+                            AppendOutput($"🚀 Done: {targetBranch}\n");
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            AppendError("❌ Operation cancelled");
+                            failList.Add($"{repo} | {targetBranch} | cancelled");
+                        }
+                        catch (Exception ex)
+                        {
+                            AppendError($"❌ Error processing {targetBranch}: {ex.Message}");
+                            failList.Add($"{repo} | {targetBranch} | {ex.Message}");
+                        }
+                    }
+
+                    AppendOutput($"✅ Completed: {System.IO.Path.GetFileName(repo)}\n");
+                }
+
+                // Generate final summary
+                GenerateAndLogSummary("Merge Branches Summary", successList, skipList, failList);
+            }
+            catch (OperationCanceledException)
+            {
+                AppendError("Operation cancelled by user");
+            }
+            catch (Exception ex)
+            {
+                AppendError($"Merge failed: {ex.Message}");
+            }
+            finally
+            {
+                ButtonProgressAssist.SetIsIndeterminate(btnMerge, false);
+                btnMerge.IsEnabled = true;
+                cts.Dispose();
+            }
+        }
+
+        private void CheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            ValidateSelections();
+
+            // If a repository checkbox was checked, attempt to load remote branches for quick selection
+            try
+            {
+                if (sender is CheckBox cb && cb.IsChecked == true && cb.Tag is string repoPath && !string.IsNullOrWhiteSpace(repoPath))
+                {
+                    // fire-and-forget async load (updates UI via Dispatcher)
+                    _ = LoadBranchesForRepoAsync(repoPath);
+                    // also attempt to validate current TargetBranchBox for this repo's remote
+                    _ = ValidateTargetForRepoAsync(repoPath, TargetBranchBox.Text.Trim());
+                }
+            }
+            catch { }
+        }
+
+        private async Task ValidateTargetForRepoAsync(string repoPath, string targetBranch)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(targetBranch))
+                    return;
+
+                var remote = await GitHelper.GetDefaultRemoteNameAsync(repoPath).ConfigureAwait(false);
+                var exists = await GitHelper.RemoteBranchExistsAsync(repoPath, remote, targetBranch).ConfigureAwait(false);
+                // If not exists, show subtle UI cue by adding an item to TargetBranchBox with suffix (missing)
+                if (!exists)
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        // Ensure item exists but marked
+                        var display = $"{targetBranch} (missing on {remote})";
+                        if (!TargetBranchBox.Items.Contains(display))
+                            TargetBranchBox.Items.Add(display);
+                    });
+                }
+            }
+            catch { }
+        }
+
+        private async Task LoadBranchesForRepoAsync(string repoPath)
+        {
+            try
+            {
+                // Ensure repo path exists and contains git
+                if (!Directory.Exists(repoPath) || !Directory.Exists(Path.Combine(repoPath, ".git")))
+                    return;
+
+                // Use ls-remote to list remote heads
+                var res = await GitHelper.RetryRunGitCommandAsync(repoPath, "ls-remote --heads origin", 3, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(30));
+                if (!res.IsSuccess)
+                {
+                    // fallback: try listing local branches
+                    var localRes = await GitHelper.RetryRunGitCommandAsync(repoPath, "for-each-ref --format='%(refname:short)' refs/heads/", 3, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10));
+                    if (!localRes.IsSuccess) return;
+                    var locals = localRes.StdOut.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
+                    foreach (var b in locals)
+                    {
+                        AddBranchToRecentAndUi(b);
+                    }
+                    return;
+                }
+
+                var lines = res.StdOut.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var line in lines)
+                {
+                    // format: <sha>\trefs/heads/<branch>
+                    var parts = line.Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 2)
+                    {
+                        var refPart = parts[1];
+                        var prefix = "refs/heads/";
+                        if (refPart.StartsWith(prefix))
+                        {
+                            var branch = refPart.Substring(prefix.Length).Trim();
+                            if (!string.IsNullOrWhiteSpace(branch))
+                                AddBranchToRecentAndUi(branch);
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private void AddBranchToRecentAndUi(string branch)
+        {
+            try
+            {
+                // update settings recent branches with dedupe (case-insensitive)
+                _settings.RecentBranches ??= new List<string>();
+                if (!_settings.RecentBranches.Contains(branch, StringComparer.OrdinalIgnoreCase))
+                {
+                    _settings.RecentBranches.Add(branch);
+                    if (_settings.RecentBranches.Count > 100)
+                        _settings.RecentBranches.RemoveRange(0, _settings.RecentBranches.Count - 100);
+                    _settings.Save();
+                }
+
+                Dispatcher.Invoke(() =>
+                {
+                    if (!SourceBranchBox.Items.Contains(branch))
+                        SourceBranchBox.Items.Add(branch);
+                    if (!TargetBranchBox.Items.Contains(branch))
+                        TargetBranchBox.Items.Add(branch);
+                });
+            }
+            catch { }
+        }
+
+        // Button handler to pull selected branches from origin (mirrors provided bash script behavior)
+        private async void PullSelectedBranches_Click(object sender, RoutedEventArgs e)
+        {
+            var cts = new CancellationTokenSource();
+            btnPullBranches.IsEnabled = false;
+            ButtonProgressAssist.SetIsIndeterminate(btnPullBranches, true);
+
+            var successList = new List<string>();
+            var skipList = new List<string>();
+            var failList = new List<string>();
+
+            // Get single source branch
+            var sourceItem = SourceBranchBox.SelectedItem as string;
+            if (string.IsNullOrWhiteSpace(sourceItem))
+            {
+                AppendError("❌ Source branch is empty. Please select a source branch.");
+                btnPullBranches.IsEnabled = true;
+                ButtonProgressAssist.SetIsIndeterminate(btnPullBranches, false);
+                return;
+            }
+
+            var repoPaths = GetSelectedRepositories();
+            string source = sourceItem.Trim();
+
+            AppendOutput($"\n🚀 Pull Branches Started");
+            AppendOutput($"Source Branch: {source}");
+            AppendOutput($"Repositories: {repoPaths.Count}\n");
+
+            try
+            {
+                foreach (var repo in repoPaths)
+                {
+                    AppendOutput($"📁 Project: {System.IO.Path.GetFileName(repo)}");
+                    AppendOutput("═".PadRight(50, '═')));
+
+                    if (!Directory.Exists(repo) || !Directory.Exists(System.IO.Path.Combine(repo, ".git")))
+                    {
+                        AppendError($"❌ Repository path not found or not a git repo: {repo}");
+                        failList.Add($"{repo} | pull failed | repo not found");
+                        continue;
+                    }
+
+                    AppendOutput($"🔄 Fetching {source} from origin");
+                    AppendOutput("───────────────────────────────────────────────");
+
+                    try
+                    {
+                        // Fetch source branch with retry
+                        bool fetchSuccess = false;
+                        for (int attempt = 1; attempt <= 3; attempt++)
+                        {
+                            AppendOutput($"🔄 Fetching {source} (Attempt {attempt}/3)...");
+
+                            try
+                            {
+                                var result = await GitHelper.RetryRunGitCommandAsync(repo, $"fetch origin {source}", 1, null, TimeSpan.FromMinutes(2), cts.Token).ConfigureAwait(false);
+                                if (result.IsSuccess)
+                                {
+                                    fetchSuccess = true;
+                                    AppendOutput($"✔ Fetch successful");
+                                    successList.Add($"{repo} | {source}");
+                                    break;
+                                }
+                                else
+                                {
+                                    if (attempt < 3)
+                                    {
+                                        await Task.Delay(2000, cts.Token).ConfigureAwait(false);
+                                    }
+                                    else
+                                    {
+                                        AppendError($"❌ Fetch failed after 3 attempts: {result.StdErr}");
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                if (attempt < 3)
+                                {
+                                    await Task.Delay(2000, cts.Token).ConfigureAwait(false);
+                                }
+                                else
+                                {
+                                    AppendError($"❌ Fetch failed after 3 attempts: {ex.Message}");
+                                }
+                            }
+                        }
+
+                        if (!fetchSuccess)
+                        {
+                            failList.Add($"{repo} | {source} | fetch failed");
+                            continue;
+                        }
+
+                        AppendOutput($"🚀 Done: {source}\n");
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        AppendError("❌ Operation cancelled");
+                        failList.Add($"{repo} | {source} | cancelled");
+                    }
+                    catch (Exception ex)
+                    {
+                        AppendError($"❌ Error pulling {source}: {ex.Message}");
+                        failList.Add($"{repo} | {source} | {ex.Message}");
+                    }
+
+                    AppendOutput($"✅ Completed: {System.IO.Path.GetFileName(repo)}\n");
+                }
+
+                // Generate final summary
+                GenerateAndLogSummary("Pull Branches Summary", successList, skipList, failList);
+            }
+            catch (OperationCanceledException)
+            {
+                AppendError("Operation cancelled by user");
+            }
+            catch (Exception ex)
+            {
+                AppendError($"Pull failed: {ex.Message}");
+            }
+            finally
+            {
+                ButtonProgressAssist.SetIsIndeterminate(btnPullBranches, false);
+                btnPullBranches.IsEnabled = true;
+                cts.Dispose();
+            }
+        }
+
+        private void RefreshBranches_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                btnRefreshBranches.IsEnabled = false;
+                ButtonProgressAssist.SetIsIndeterminate(btnRefreshBranches, true);
+
+                // Unselect any checked repositories in the dynamic panel
+                try
+                {
+                    foreach (var child in DynamicRepoPanel.Children)
+                    {
+                        if (child is CheckBox cb)
+                            cb.IsChecked = false;
+                    }
+                }
+                catch { }
+
+                // Clear selection in the persisted list display
+                try { if (lstRepos != null) lstRepos.SelectedIndex = -1; } catch { }
+
+                // Clear branch selections
+                try
+                {
+                    if (SourceBranchBox != null)
+                    {
+                        SourceBranchBox.SelectedIndex = -1;
+                        SourceBranchBox.Items.Clear();
+                    }
+                    if (TargetBranchBox != null)
+                    {
+                        TargetBranchBox.SelectedIndex = -1;
+                        TargetBranchBox.Items.Clear();
+                    }
+                }
+                catch { }
+
+                // Clear logs
+                try
+                {
+                    OutputBox?.Document.Blocks.Clear();
+                }
+                catch { }
+
+                AppendOutput("✨ UI refreshed (repositories, branches, and logs cleared).");
+            }
+            catch (Exception ex)
+            {
+                AppendError($"Failed to refresh UI: {ex.Message}");
+            }
+            finally
+            {
+                ButtonProgressAssist.SetIsIndeterminate(btnRefreshBranches, false);
+                btnRefreshBranches.IsEnabled = true;
+            }
+        }
+
+        #region Private methods
+        
+        private void GenerateAndLogSummary(string title, List<string> successList, List<string> skipList, List<string> failList)
+        {
+            try
+            {
+                AppendOutput($"\n╔══════════════════════════════════════════╗");
+                AppendOutput($"║         {title.PadRight(38)} ║");
+                AppendOutput($"╚══════════════════════════════════════════╝\n");
+
+                if (successList.Count > 0)
+                {
+                    AppendOutput($"✅ SUCCESSFUL ({successList.Count}):");
+                    foreach (var item in successList)
+                    {
+                        AppendOutput($"  ✔ {item}");
+                    }
+                    AppendOutput("");
+                }
+
+                if (skipList.Count > 0)
+                {
+                    AppendOutput($"⏭ SKIPPED (Already Merged) ({skipList.Count}):");
+                    foreach (var item in skipList)
+                    {
+                        AppendOutput($"  ⏭ {item}");
+                    }
+                    AppendOutput("");
+                }
+
+                if (failList.Count > 0)
+                {
+                    AppendOutput($"❌ FAILED ({failList.Count}):");
+                    foreach (var item in failList)
+                    {
+                        AppendError($"  ❌ {item}");
+                    }
+                    AppendOutput("");
+                }
+
+                AppendOutput("═══════════════════════════════════════════");
+                AppendOutput($"🎉 All Projects Completed with Full Summary!");
+                AppendOutput("");
+            }
+            catch (Exception ex)
+            {
+                AppendError($"Error generating summary: {ex.Message}");
+            }
+        }
+
+        private List<string> GetClientBranch()
+        {
+            // Client branch selection removed; callers should use explicit TargetBranchBox instead.
+            return new List<string>();
+        }
+        
+        private List<string> GetSelectedEnvironments()
+        {
+            // Environment selection removed; return empty list. Use TargetBranchBox for explicit target.
+            return new List<string>();
+        }
+        
+        private List<string> GetSelectedRepositories()
+        {
+            var selectedRepos = new List<string>();
+
+            try
+            {
+                foreach (var child in DynamicRepoPanel.Children)
+                {
+                    if (child is CheckBox cb && cb.IsChecked == true && cb.Tag is string path && !string.IsNullOrWhiteSpace(path))
+                        selectedRepos.Add(path);
+                }
+            }
+            catch { }
+
+            return selectedRepos;
+        }
+
+        private bool PanelHasCheckedCheckBox(System.Windows.Controls.Panel panel)
+        {
+            foreach (var child in panel.Children)
+            {
+                if (child is CheckBox cb && cb.IsChecked == true)
+                    return true;
+
+                if (child is System.Windows.Controls.Panel innerPanel && PanelHasCheckedCheckBox(innerPanel))
+                    return true;
+
+                // cover ContentControls that may host a CheckBox (e.g. WrapPanel items)
+                if (child is System.Windows.Controls.ContentControl contentControl && contentControl.Content is CheckBox contentCb && contentCb.IsChecked == true)
+                    return true;
+            }
+            return false;
+        }
+
+        private void ValidateSelections()
+        {
+            bool hasRepo = PanelHasCheckedCheckBox(DynamicRepoPanel);
+            bool hasSourceBranch = SourceBranchBox?.SelectedItem != null;
+            bool hasTargetBranches = TargetBranchBox?.SelectedItems != null && TargetBranchBox.SelectedItems.Count > 0;
+
+            // Merge button: requires 1 repo, 1 source branch, and 1+ target branches
+            btnMerge.IsEnabled = hasRepo && hasSourceBranch && hasTargetBranches;
+
+            // Pull button: requires 1 repo and 1+ source branches selected
+            if (btnPullBranches != null)
+                btnPullBranches.IsEnabled = hasRepo && hasSourceBranch;
+        }
+
+        #endregion
+
+        private void MetroWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            // save quick settings
+            try
+            {
+                _settings.LogFontSize = OutputBox.FontSize;
+                _settings.LogMaxChars = _settings.LogMaxChars; // already in settings
+                _settings.Save();
+            }
+            catch { }
+            App.Current.Shutdown();
+        }
+
+        private void ClearErrorBox_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (OutputBox != null) OutputBox.Document.Blocks.Clear();
+                _outputMaster.Clear();
+                _errorMaster.Clear();
+            }
+            catch { }
+        }
+
+        // Navigation + highlighting helpers
+        private void HighlightOutputMatch(int matchIndex)
+        {
+            try
+            {
+                if (matchIndex < 0 || matchIndex >= _outputMatchIndexes.Count) return;
+                var idx = _outputMatchIndexes[matchIndex];
+                var len = txtSearchOutput?.Text?.Length ?? 0;
+                OutputBox.Focus();
+                OutputBox.Selection.Select(OutputBox.Document.ContentStart, OutputBox.Document.ContentStart);
+                var start = GetTextPointerAt(OutputBox, idx);
+                var end = GetTextPointerAt(OutputBox, idx + len);
+                if (start != null && end != null)
+                {
+                    OutputBox.Selection.Select(start, end);
+                    OutputBox.ScrollToVerticalOffset(OutputBox.VerticalOffset + 0.1);
+                }
+            }
+            catch { }
+        }
+
+        private void HighlightErrorMatch(int matchIndex)
+        {
+            try
+            {
+                if (matchIndex < 0 || matchIndex >= _errorMatchIndexes.Count) return;
+                var idx = _errorMatchIndexes[matchIndex];
+                var len = txtSearchError?.Text?.Length ?? 0;
+                ErrorBox.Focus();
+                var start = GetTextPointerAt(ErrorBox, idx);
+                var end = GetTextPointerAt(ErrorBox, idx + len);
+                if (start != null && end != null)
+                {
+                    ErrorBox.Selection.Select(start, end);
+                }
+            }
+            catch { }
+        }
+
+        private System.Windows.Documents.TextPointer? GetTextPointerAt(System.Windows.Controls.RichTextBox box, int charIndex)
+        {
+            try
+            {
+                var navigator = box.Document.ContentStart;
+                int cnt = 0;
+                while (navigator != null && navigator.CompareTo(box.Document.ContentEnd) < 0)
+                {
+                    if (navigator.GetPointerContext(System.Windows.Documents.LogicalDirection.Forward) == System.Windows.Documents.TextPointerContext.Text)
+                    {
+                        string? run = navigator.GetTextInRun(System.Windows.Documents.LogicalDirection.Forward);
+                        if (!string.IsNullOrEmpty(run))
+                        {
+                            if (cnt + run.Length >= charIndex)
+                            {
+                                return navigator.GetPositionAtOffset(charIndex - cnt);
+                            }
+                            cnt += run.Length;
+                        }
+                    }
+                    navigator = navigator.GetNextContextPosition(System.Windows.Documents.LogicalDirection.Forward);
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        private void PrevOutputMatch_Click(object sender, RoutedEventArgs e)
+        {
+            if (_outputMatchIndexes.Count == 0) return;
+            _outputCurrentMatch = (_outputCurrentMatch - 1 + _outputMatchIndexes.Count) % _outputMatchIndexes.Count;
+            HighlightOutputMatch(_outputCurrentMatch);
+        }
+
+        private void NextOutputMatch_Click(object sender, RoutedEventArgs e)
+        {
+            if (_outputMatchIndexes.Count == 0) return;
+            _outputCurrentMatch = (_outputCurrentMatch + 1) % _outputMatchIndexes.Count;
+            HighlightOutputMatch(_outputCurrentMatch);
+        }
+
+        private void PrevErrorMatch_Click(object sender, RoutedEventArgs e)
+        {
+            if (_errorMatchIndexes.Count == 0) return;
+            _errorCurrentMatch = (_errorCurrentMatch - 1 + _errorMatchIndexes.Count) % _errorMatchIndexes.Count;
+            HighlightErrorMatch(_errorCurrentMatch);
+        }
+
+        private void NextErrorMatch_Click(object sender, RoutedEventArgs e)
+        {
+            if (_errorMatchIndexes.Count == 0) return;
+            _errorCurrentMatch = (_errorCurrentMatch + 1) % _errorMatchIndexes.Count;
+            HighlightErrorMatch(_errorCurrentMatch);
+        }
+
+        private void ChkFilterChanged(object sender, RoutedEventArgs e)
+        {
+            // simple filter: when checked, show errors-only marker in OutputBox by clearing non-error lines
+            try
+            {
+                if (OutputBox == null) return;
+                // persist setting
+                _settings.OutputErrorsOnly = chkShowOnlyOutputErrors.IsChecked == true;
+                _settings.Save();
+                // re-render OutputBox from master with filter
+                var text = _outputMaster.ToString();
+                if (_settings.OutputErrorsOnly)
+                {
+                    var lines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    var filtered = string.Join(Environment.NewLine, lines.Where(l => l.Contains("❌") || l.Contains("Error") || l.Contains("FAIL") || l.Contains("fail")));
+                    OutputBox.Document.Blocks.Clear();
+                    OutputBox.AppendText(filtered + Environment.NewLine);
+                }
+                else
+                {
+                    OutputBox.Document.Blocks.Clear();
+                    OutputBox.AppendText(text);
+                }
+            }
+            catch { }
+        }
+
+        private void AppendOutput(string text)
+        {
+            var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            var line = $"[{timestamp}] {text}\n";
+            _outputQueue.Enqueue(line);
+            _outputMaster.Append(line);
+        }
+
+        private void AppendError(string text)
+        {
+            var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            var line = $"[{timestamp}] {text}\n";
+            _errorQueue.Enqueue(line);
+            _errorMaster.Append(line);
+        }
+
+        private void FlushLogQueues()
+        {
+            try
+            {
+                // Flush output queue into inline OutputBox
+                if (_outputQueue.Count > 0)
+                {
+                    var sb = new StringBuilder();
+                    while (_outputQueue.TryDequeue(out var item))
+                        sb.Append(item);
+
+                    if (sb.Length > 0)
+                    {
+                        var text = sb.ToString();
+                        try
+                        {
+                            if (OutputBox != null)
+                            {
+                                // update RichTextBox without destroying master
+                                AppendToRichTextBox(OutputBox, text, OutputBox.Foreground);
+                                // trim master
+                                var max = _settings?.LogMaxChars > 0 ? _settings.LogMaxChars : MaxLogChars;
+                                if (_outputMaster.Length > max)
+                                    _outputMaster.Remove(0, _outputMaster.Length - max);
+                            }
+
+                            if (_streamLogsToFile && _logFileWriter != null)
+                            {
+                                _logFileWriter.Write(text);
+                                _logFileWriter.Flush();
+                            }
+                        }
+                        catch { }
+                    }
+                }
+
+                // Flush error queue into inline ErrorBox
+                if (_errorQueue.Count > 0)
+                {
+                    var sb2 = new StringBuilder();
+                    while (_errorQueue.TryDequeue(out var item))
+                        sb2.Append(item);
+
+                    if (sb2.Length > 0)
+                    {
+                        var text2 = sb2.ToString();
+                        try
+                        {
+                            if (ErrorBox != null)
+                            {
+                                AppendToRichTextBox(ErrorBox, text2, ErrorBox.Foreground);
+                                var max = _settings?.LogMaxChars > 0 ? _settings.LogMaxChars : MaxLogChars;
+                                if (_errorMaster.Length > max)
+                                    _errorMaster.Remove(0, _errorMaster.Length - max);
+                            }
+
+                            if (_streamLogsToFile && _logFileWriter != null)
+                            {
+                                _logFileWriter.Write(text2);
+                                _logFileWriter.Flush();
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch
+            {
+                // swallow logging errors
+            }
+        }
+
+        private void OpenLogWindow_Click(object sender, RoutedEventArgs e)
+        {
+            ToggleLogs();
+        }
+
+        private void ToggleLogs_Click(object sender, RoutedEventArgs e)
+        {
+            ToggleLogs();
+        }
+
+        private void ToggleLogs()
+        {
+            try
+            {
+                // In the new layout, the logs are always visible, but we can toggle the section visibility
+                // This could be replaced with scrolling or other interaction if needed
+                // Currently logs are part of the main layout
+                try
+                {
+                    // persist state
+                    _settings.OutputErrorsOnly = chkShowOnlyOutputErrors.IsChecked == true;
+                    _settings.LastSearchOutput = txtSearchOutput?.Text;
+                    _settings.LastSearchError = txtSearchError?.Text;
+                    _settings.Save();
+                }
+                catch { }
+                // ensure logs scrolled to end
+                try { OutputBox?.ScrollToEnd(); ErrorBox?.ScrollToEnd(); } catch { }
+            }
+            catch { }
+        }
+
+        private void chkAutoOpen_Checked(object sender, RoutedEventArgs e)
+        {
+            _autoOpenLogs = true;
+            _settings.AutoOpenLogs = true;
+            _settings.Save();
+        }
+
+        private void chkAutoOpen_Unchecked(object sender, RoutedEventArgs e)
+        {
+            _autoOpenLogs = false;
+            _settings.AutoOpenLogs = false;
+            _settings.Save();
+        }
+
+        private void chkStreamLogs_Checked(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(txtLogPath.Text))
+                SelectLogPath();
+
+            if (!string.IsNullOrWhiteSpace(txtLogPath.Text))
+                StartStreamLogs(txtLogPath.Text);
+            _settings.StreamLogs = true;
+            _settings.LogFilePath = txtLogPath.Text;
+            _settings.Save();
+        }
+
+        private void chkStreamLogs_Unchecked(object sender, RoutedEventArgs e)
+        {
+            StopStreamLogs();
+            _settings.StreamLogs = false;
+            _settings.Save();
+        }
+
+        private void SelectLogPath_Click(object sender, RoutedEventArgs e) => SelectLogPath();
+
+        private void SelectLogPath()
+        {
+            var dlg = new Microsoft.Win32.SaveFileDialog()
+            {
+                Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
+                DefaultExt = "txt",
+                FileName = "mergepilot.log"
+            };
+
+            if (dlg.ShowDialog(this) == true)
+            {
+                txtLogPath.Text = dlg.FileName;
+                _settings.LogFilePath = dlg.FileName;
+                _settings.Save();
+            }
+        }
+
+        private void SaveLogs_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var dlg = new Microsoft.Win32.SaveFileDialog()
+                {
+                    Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
+                    DefaultExt = "txt",
+                    FileName = "mergepilot_logs.txt"
+                };
+
+                if (dlg.ShowDialog(this) == true)
+                {
+                    var combined = new StringBuilder();
+                    combined.AppendLine("--- OUTPUT ---");
+                    combined.Append(_outputMaster.ToString());
+                    combined.AppendLine();
+                    combined.AppendLine("--- ERRORS ---");
+                    combined.Append(_errorMaster.ToString());
+                    System.IO.File.WriteAllText(dlg.FileName, combined.ToString());
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendError($"Failed to save logs: {ex.Message}");
+            }
+        }
+
+        private void CopyLogs_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var combined = new StringBuilder();
+                combined.AppendLine("--- OUTPUT ---");
+                combined.Append(_outputMaster.ToString());
+                combined.AppendLine();
+                combined.AppendLine("--- ERRORS ---");
+                combined.Append(_errorMaster.ToString());
+                System.Windows.Clipboard.SetText(combined.ToString());
+            }
+            catch { }
+        }
+
+        // Keyboard shortcuts: Save (Ctrl+S), Copy (Ctrl+C), Clear (Ctrl+K)
+        private void RegisterLogShortcuts()
+        {
+            try
+            {
+                this.InputBindings.Add(new KeyBinding(new RelayCommand(_ => SaveLogs_Click(null, null)), Key.S, ModifierKeys.Control));
+                this.InputBindings.Add(new KeyBinding(new RelayCommand(_ => CopyLogs_Click(null, null)), Key.D, ModifierKeys.Control | ModifierKeys.Shift));
+                this.InputBindings.Add(new KeyBinding(new RelayCommand(_ => ClearErrorBox_Click(null, null)), Key.K, ModifierKeys.Control));
+            }
+            catch { }
+        }
+
+        private void sldFlushInterval_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (txtFlushValue != null)
+                txtFlushValue.Text = ((int)sldFlushInterval.Value).ToString();
+
+            if (_logFlushTimer != null)
+                _logFlushTimer.Interval = TimeSpan.FromMilliseconds((int)sldFlushInterval.Value);
+
+            if (_settings != null)
+            {
+                _settings.FlushIntervalMs = (int)sldFlushInterval.Value;
+                _settings.Save();
+            }
+        }
+
+        // Old detached LogWindow removed; inline logs used instead
+    }
+}

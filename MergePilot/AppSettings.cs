@@ -1,0 +1,77 @@
+using System;
+using System.IO;
+using System.Text.Json;
+using System.Collections.Generic;
+
+namespace MergePilot
+{
+    public class AppSettings
+    {
+        public bool AutoOpenLogs { get; set; } = true;
+        public bool StreamLogs { get; set; } = false;
+        public string? LogFilePath { get; set; }
+        public int FlushIntervalMs { get; set; } = 200;
+
+        // Dynamic repository list saved by the app
+        public List<RepositoryEntry> Repositories { get; set; } = new();
+        // Recently discovered or used branches (persisted across sessions)
+        public List<string> RecentBranches { get; set; } = new();
+        // Optionally persist last used source/target
+        public string? LastSourceBranch { get; set; }
+        public string? LastTargetBranch { get; set; }
+        // Persist per-branch checked state (nullable for tri-state)
+        public Dictionary<string, bool?> BranchCheckedState { get; set; } = new();
+        // Persist per-branch expansion state
+        public Dictionary<string, bool> BranchExpandedState { get; set; } = new();
+        // Persist whether inline logs are visible
+        public bool InlineLogsVisible { get; set; } = false;
+        // Persist whether output pane shows errors-only filter
+        public bool OutputErrorsOnly { get; set; } = false;
+        // Persist last search terms
+        public string? LastSearchOutput { get; set; }
+        public string? LastSearchError { get; set; }
+        // Log appearance settings
+        public double LogFontSize { get; set; } = 13.0;
+        public int LogMaxChars { get; set; } = 200000;
+
+        public class RepositoryEntry
+        {
+            public string? Name { get; set; }
+            public string? Path { get; set; }
+            // Optional remote URL or metadata
+            public string? RemoteUrl { get; set; }
+        }
+
+        private static string SettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MergePilot", "settings.json");
+
+        public static AppSettings Load()
+        {
+            try
+            {
+                var path = SettingsPath;
+                if (File.Exists(path))
+                {
+                    var json = File.ReadAllText(path);
+                    var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                    return JsonSerializer.Deserialize<AppSettings>(json, opts) ?? new AppSettings();
+                }
+            }
+            catch { }
+            return new AppSettings();
+        }
+
+        public void Save()
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(SettingsPath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                    Directory.CreateDirectory(dir);
+
+                var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(SettingsPath, json);
+            }
+            catch { }
+        }
+    }
+}
