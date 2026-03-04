@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 using MahApps.Metro.Controls;
 using CheckBox = System.Windows.Controls.CheckBox;
@@ -48,6 +49,9 @@ namespace MergePilot
         // Track all branches for hierarchical organization
         private HashSet<string> _allSourceBranches = new(StringComparer.OrdinalIgnoreCase);
         private HashSet<string> _allTargetBranches = new(StringComparer.OrdinalIgnoreCase);
+
+        // Prevent re-entrant checkbox events
+        private bool _isUpdatingCheckBoxes = false;
 
         public MainWindow()
         {
@@ -646,70 +650,150 @@ namespace MergePilot
             // Called when a branch checkbox in the ComboBox template is checked/unchecked
             try
             {
-                if (sender is CheckBox checkBox)
+                // Ignore events while we're programmatically updating checkboxes
+                if (_isUpdatingCheckBoxes)
+                    return;
+
+                if (sender is CheckBox checkBox && checkBox.DataContext is BranchItem branchItem)
                 {
-                    // Get the branch name and BranchItem - could be from Tag (string) or from BranchItem's FullName
-                    string branchName = null;
-                    BranchItem branchItem = null;
-
-                    if (checkBox.Tag is string tagBranch && !string.IsNullOrWhiteSpace(tagBranch))
+                    // Find which ComboBox contains this BranchItem
+                    System.Windows.Controls.ComboBox sourceCombo = null;
+                    
+                    // Try finding by visual tree first (more efficient)
+                    DependencyObject current = checkBox;
+                    while (current != null)
                     {
-                        branchName = tagBranch;
-                    }
-                    else if (checkBox.DataContext is BranchItem dataContextItem)
-                    {
-                        branchName = dataContextItem.FullName;
-                        branchItem = dataContextItem;
-                    }
-
-                    if (!string.IsNullOrWhiteSpace(branchName))
-                    {
-                        // Determine which ComboBox this belongs to
-                        bool isSourceItem = IsItemInComboBox(SourceBranchBox, branchName);
-                        bool isTargetItem = IsItemInComboBox(TargetBranchBox, branchName);
-
-                        // Handle parent-child relationships
-                        if (branchItem?.IsGroup == true)
+                        if (current is System.Windows.Controls.ComboBox combo)
                         {
-                            // This is a group - toggle all children
-                            bool shouldCheck = checkBox.IsChecked == true;
-                            ToggleGroupChildren(branchItem, shouldCheck, isSourceItem, isTargetItem);
+                            sourceCombo = combo;
+                            break;
                         }
-                        else
-                        {
-                            // This is a leaf branch - update tracking
-                            if (isSourceItem)
-                            {
-                                if (checkBox.IsChecked == true)
-                                    _checkedSourceBranches.Add(branchName);
-                                else
-                                    _checkedSourceBranches.Remove(branchName);
-                            }
-
-                            if (isTargetItem)
-                            {
-                                if (checkBox.IsChecked == true)
-                                    _checkedTargetBranches.Add(branchName);
-                                else
-                                    _checkedTargetBranches.Remove(branchName);
-                            }
-
-                            // Update parent checkbox state (tri-state)
-                            if (branchItem?.Parent != null)
-                            {
-                                UpdateParentCheckBoxState(branchItem.Parent, isSourceItem, isTargetItem);
-                            }
-                        }
-
-                        ValidateSelections();
+                        current = VisualTreeHelper.GetParent(current);
                     }
+
+                    // If not found by visual tree, check which ComboBox contains this item
+                    if (sourceCombo == null)
+                    {
+                        if (IsItemInComboBoxByItem(SourceBranchBox, branchItem))
+                            sourceCombo = SourceBranchBox;
+                        else if (IsItemInComboBoxByItem(TargetBranchBox, branchItem))
+                            sourceCombo = TargetBranchBox;
+                    }
+
+                    // Only proceed if we found the source combo
+                    if (sourceCombo == null)
+                        return;
+
+                    bool isChecked = checkBox.IsChecked == true;
+
+                    if (branchItem.IsGroup)
+                    {
+                        // Parent group was toggled - toggle all children in THIS combobox only
+                        ToggleGroupChildren(branchItem, isChecked, sourceCombo);
+                    }
+                    else
+                    {
+                        // Leaf branch was toggled - update tracking and parent state in THIS combobox only
+                        UpdateLeafBranchState(branchItem, isChecked, sourceCombo);
+                    }
+
+                    ValidateSelections();
                 }
             }
             catch (Exception ex)
             {
-                // Log but don't crash
                 System.Diagnostics.Debug.WriteLine($"BranchCheckBox_Changed error: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Validates and updates button states based on current selections
+        /// </summary>
+        private void ValidateSelections()
+        {
+            bool hasSourceBranches = _checkedSourceBranches.Count > 0;
+            bool hasTargetBranches = _checkedTargetBranches.Count > 0;
+
+            // Merge button: needs both source and target branches selected
+            btnMerge.IsEnabled = hasSourceBranches && hasTargetBranches;
+
+            // Pull button: needs source branches selected
+            btnPullBranches.IsEnabled = hasSourceBranches;
+        }
+
+        /// <summary>
+        /// Updates the state of a leaf branch and propagates to parent
+        /// </summary>
+        private void UpdateLeafBranchState(BranchItem leafItem, bool isChecked, System.Windows.Controls.ComboBox sourceCombo)
+        {
+            bool isSourceCombo = ReferenceEquals(sourceCombo, SourceBranchBox);
+            bool isTargetCombo = ReferenceEquals(sourceCombo, TargetBranchBox);
+
+            if (isSourceCombo)
+            {
+                if (isChecked)
+                    _checkedSourceBranches.Add(leafItem.FullName);
+                else
+                    _checkedSourceBranches.Remove(leafItem.FullName);
+            }
+
+            if (isTargetCombo)
+            {
+                if (isChecked)
+                    _checkedTargetBranches.Add(leafItem.FullName);
+                else
+                    _checkedTargetBranches.Remove(leafItem.FullName);
+            }
+
+            // Update parent state in the same combobox (with re-entrancy protection)
+            if (leafItem.Parent != null)
+            {
+                try
+                {
+                    _isUpdatingCheckBoxes = true;
+                    UpdateParentCheckBoxState(leafItem.Parent, sourceCombo);
+                }
+                finally
+                {
+                    _isUpdatingCheckBoxes = false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Finds a BranchItem by its full name in the combobox items
+        /// </summary>
+        private BranchItem FindBranchItemByFullName(System.Windows.Controls.ComboBox comboBox, string fullName)
+        {
+            if (comboBox?.Items == null || string.IsNullOrWhiteSpace(fullName))
+                return null;
+
+            foreach (var item in comboBox.Items)
+            {
+                if (item is BranchItem branchItem && branchItem.FullName == fullName)
+                    return branchItem;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Checks if a BranchItem is in the given ComboBox (by object reference)
+        /// </summary>
+        private bool IsItemInComboBoxByItem(System.Windows.Controls.ComboBox comboBox, BranchItem item)
+        {
+            if (comboBox?.Items == null || item == null) 
+                return false;
+
+            foreach (var comboItem in comboBox.Items)
+            {
+                // Compare by object reference, not by FullName
+                // This is critical for distinguishing between Source and Target dropdowns
+                if (ReferenceEquals(comboItem, item))
+                    return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -733,37 +817,49 @@ namespace MergePilot
         /// <summary>
         /// Toggles all children of a group
         /// </summary>
-        private void ToggleGroupChildren(BranchItem groupItem, bool shouldCheck, bool isSourceItem, bool isTargetItem)
+        private void ToggleGroupChildren(BranchItem groupItem, bool shouldCheck, System.Windows.Controls.ComboBox sourceCombo)
         {
+            bool isSourceCombo = ReferenceEquals(sourceCombo, SourceBranchBox);
+            bool isTargetCombo = ReferenceEquals(sourceCombo, TargetBranchBox);
+
             var leafChildren = BranchOrganizer.GetChildBranches(groupItem);
 
-            foreach (var childBranchName in leafChildren)
+            try
             {
-                if (isSourceItem)
+                _isUpdatingCheckBoxes = true;
+
+                // Update tracking set and UI for all child leaves
+                foreach (var childBranchName in leafChildren)
                 {
-                    if (shouldCheck)
-                        _checkedSourceBranches.Add(childBranchName);
-                    else
-                        _checkedSourceBranches.Remove(childBranchName);
+                    if (isSourceCombo)
+                    {
+                        if (shouldCheck)
+                            _checkedSourceBranches.Add(childBranchName);
+                        else
+                            _checkedSourceBranches.Remove(childBranchName);
+                    }
+                    
+                    if (isTargetCombo)
+                    {
+                        if (shouldCheck)
+                            _checkedTargetBranches.Add(childBranchName);
+                        else
+                            _checkedTargetBranches.Remove(childBranchName);
+                    }
                 }
 
-                if (isTargetItem)
+                // Update all child checkboxes in the UI
+                UpdateChildCheckBoxesInUI(sourceCombo, groupItem, shouldCheck);
+
+                // Update parent checkbox state recursively in the same combobox
+                if (groupItem.Parent != null)
                 {
-                    if (shouldCheck)
-                        _checkedTargetBranches.Add(childBranchName);
-                    else
-                        _checkedTargetBranches.Remove(childBranchName);
+                    UpdateParentCheckBoxState(groupItem.Parent, sourceCombo);
                 }
             }
-
-            // Update UI checkboxes for children
-            System.Windows.Controls.ComboBox targetCombo = isSourceItem ? SourceBranchBox : TargetBranchBox;
-            UpdateChildCheckBoxesInUI(targetCombo, groupItem, shouldCheck);
-
-            // Update parent checkbox state
-            if (groupItem.Parent != null)
+            finally
             {
-                UpdateParentCheckBoxState(groupItem.Parent, isSourceItem, isTargetItem);
+                _isUpdatingCheckBoxes = false;
             }
         }
 
@@ -775,18 +871,15 @@ namespace MergePilot
             if (comboBox?.Items == null) return;
 
             var leafChildren = BranchOrganizer.GetChildBranches(parentItem);
-            var checkBoxes = FindAllVisualChildren<CheckBox>(comboBox);
+            
+            // Update the BranchItem data models directly
+            UpdateBranchItemIsChecked(comboBox, leafChildren, shouldCheck);
 
+            // Also update the visual checkboxes for immediate feedback
+            var checkBoxes = FindAllVisualChildren<CheckBox>(comboBox);
             foreach (var checkBox in checkBoxes)
             {
-                string checkBoxBranchName = null;
-
-                if (checkBox.Tag is string tagBranch)
-                    checkBoxBranchName = tagBranch;
-                else if (checkBox.DataContext is BranchItem branchItem)
-                    checkBoxBranchName = branchItem.FullName;
-
-                if (!string.IsNullOrWhiteSpace(checkBoxBranchName) && leafChildren.Contains(checkBoxBranchName))
+                if (checkBox.DataContext is BranchItem branchItem && leafChildren.Contains(branchItem.FullName))
                 {
                     checkBox.IsChecked = shouldCheck;
                 }
@@ -794,58 +887,91 @@ namespace MergePilot
         }
 
         /// <summary>
-        /// Updates the parent checkbox state based on children (tri-state logic)
+        /// Recursively updates IsChecked property on BranchItem objects
         /// </summary>
-        private void UpdateParentCheckBoxState(BranchItem parentItem, bool isSourceItem, bool isTargetItem)
+        private void UpdateBranchItemIsChecked(System.Windows.Controls.ComboBox comboBox, List<string> leafFullNames, bool shouldCheck)
         {
-            if (parentItem == null) return;
+            if (comboBox?.Items == null) return;
 
-            var leafChildren = BranchOrganizer.GetChildBranches(parentItem);
-            if (leafChildren.Count == 0) return;
-
-            HashSet<string> trackedBranches = isSourceItem ? _checkedSourceBranches : _checkedTargetBranches;
-
-            int checkedCount = leafChildren.Count(child => trackedBranches.Contains(child));
-            int totalCount = leafChildren.Count;
-
-            // Find the parent checkbox in the ComboBox and update its state
-            System.Windows.Controls.ComboBox targetCombo = isSourceItem ? SourceBranchBox : TargetBranchBox;
-            UpdateCheckBoxInCombo(targetCombo, parentItem.FullName, checkedCount, totalCount);
-
-            // Recursively update grandparent
-            if (parentItem.Parent != null)
+            foreach (var item in comboBox.Items)
             {
-                UpdateParentCheckBoxState(parentItem.Parent, isSourceItem, isTargetItem);
+                if (item is BranchItem branchItem)
+                {
+                    // Check if this is a leaf child
+                    if (leafFullNames.Contains(branchItem.FullName))
+                    {
+                        branchItem.IsChecked = shouldCheck;
+                    }
+                    // Recursively check children
+                    else if (branchItem.Children.Count > 0)
+                    {
+                        UpdateBranchItemIsCheckedRecursive(branchItem.Children, leafFullNames, shouldCheck);
+                    }
+                }
             }
         }
 
         /// <summary>
-        /// Updates a checkbox in the ComboBox to reflect tri-state
+        /// Helper to recursively update BranchItem checkboxes
         /// </summary>
-        private void UpdateCheckBoxInCombo(System.Windows.Controls.ComboBox comboBox, string itemFullName, int checkedCount, int totalCount)
+        private void UpdateBranchItemIsCheckedRecursive(List<BranchItem> items, List<string> leafFullNames, bool shouldCheck)
         {
-            if (comboBox?.Items == null) return;
+            foreach (var item in items)
+            {
+                if (leafFullNames.Contains(item.FullName))
+                {
+                    item.IsChecked = shouldCheck;
+                }
+                else if (item.Children.Count > 0)
+                {
+                    UpdateBranchItemIsCheckedRecursive(item.Children, leafFullNames, shouldCheck);
+                }
+            }
+        }
 
-            var checkBoxes = FindAllVisualChildren<CheckBox>(comboBox);
+        /// <summary>
+        /// Updates the parent checkbox state based on children (tri-state logic)
+        /// </summary>
+        private void UpdateParentCheckBoxState(BranchItem parentItem, System.Windows.Controls.ComboBox sourceCombo)
+        {
+            if (parentItem == null) return;
+
+            bool isSourceCombo = ReferenceEquals(sourceCombo, SourceBranchBox);
+            HashSet<string> trackedBranches = isSourceCombo ? _checkedSourceBranches : _checkedTargetBranches;
+
+            var leafChildren = BranchOrganizer.GetChildBranches(parentItem);
+            if (leafChildren.Count == 0) return;
+
+            int checkedCount = leafChildren.Count(child => trackedBranches.Contains(child));
+            int totalCount = leafChildren.Count;
+
+            // Determine new state
+            bool? newState = null;
+            if (checkedCount == totalCount && totalCount > 0)
+                newState = true;
+            else if (checkedCount == 0)
+                newState = false;
+            else
+                newState = null; // Indeterminate
+
+            // Update the parent item's IsChecked property (this triggers binding update)
+            parentItem.IsChecked = newState;
+
+            // Also update the visual checkbox immediately
+            var checkBoxes = FindAllVisualChildren<CheckBox>(sourceCombo);
             foreach (var checkBox in checkBoxes)
             {
-                string checkBoxBranchName = null;
-
-                if (checkBox.Tag is string tagBranch)
-                    checkBoxBranchName = tagBranch;
-                else if (checkBox.DataContext is BranchItem branchItem)
-                    checkBoxBranchName = branchItem.FullName;
-
-                if (checkBoxBranchName == itemFullName && checkBox.IsThreeState)
+                if (checkBox.DataContext is BranchItem branchItem && branchItem.FullName == parentItem.FullName)
                 {
-                    if (checkedCount == totalCount)
-                        checkBox.IsChecked = true;
-                    else if (checkedCount == 0)
-                        checkBox.IsChecked = false;
-                    else
-                        checkBox.IsChecked = null; // Indeterminate state
+                    checkBox.IsChecked = newState;
                     break;
                 }
+            }
+
+            // Recursively update grandparent
+            if (parentItem.Parent != null)
+            {
+                UpdateParentCheckBoxState(parentItem.Parent, sourceCombo);
             }
         }
 
@@ -854,58 +980,31 @@ namespace MergePilot
             // When a ComboBox dropdown opens, restore the checked state of all checkboxes from tracking collections
             try
             {
+                _isUpdatingCheckBoxes = true;
+
                 if (sender is System.Windows.Controls.ComboBox comboBox)
                 {
                     HashSet<string> trackedBranches = ReferenceEquals(comboBox, SourceBranchBox) 
                         ? _checkedSourceBranches 
                         : _checkedTargetBranches;
 
-                    // First pass: Update leaf checkboxes from tracked state
-                    var checkBoxes = FindAllVisualChildren<CheckBox>(comboBox);
-                    foreach (var checkBox in checkBoxes)
+                    // First pass: Update leaf branch items from tracked state
+                    UpdateBranchItemStatesFromTracked(comboBox.Items.Cast<object>().ToList(), trackedBranches);
+
+                    // Second pass: Update parent branch items based on their children's state
+                    foreach (var item in comboBox.Items)
                     {
-                        string branchName = null;
-                        BranchItem branchItem = null;
-
-                        // Try to get branch name from Tag (legacy support) or DataContext (BranchItem)
-                        if (checkBox.Tag is string tagBranch && !string.IsNullOrWhiteSpace(tagBranch))
-                        {
-                            branchName = tagBranch;
-                        }
-                        else if (checkBox.DataContext is BranchItem dataContextItem)
-                        {
-                            branchName = dataContextItem.FullName;
-                            branchItem = dataContextItem;
-                        }
-
-                        if (!string.IsNullOrWhiteSpace(branchName))
-                        {
-                            if (branchItem?.IsGroup != true)
-                            {
-                                // For leaves, check if in tracked set
-                                bool shouldBeChecked = trackedBranches.Contains(branchName);
-                                if (checkBox.IsChecked != shouldBeChecked)
-                                {
-                                    checkBox.IsChecked = shouldBeChecked;
-                                }
-                            }
-                        }
-                    }
-
-                    // Second pass: Update parent checkboxes based on their children's state
-                    foreach (var checkBox in checkBoxes)
-                    {
-                        if (checkBox.DataContext is BranchItem branchItem && branchItem.IsGroup)
+                        if (item is BranchItem branchItem && branchItem.IsGroup)
                         {
                             var leafChildren = BranchOrganizer.GetChildBranches(branchItem);
                             int checkedCount = leafChildren.Count(child => trackedBranches.Contains(child));
 
                             if (checkedCount == leafChildren.Count && leafChildren.Count > 0)
-                                checkBox.IsChecked = true;
+                                branchItem.IsChecked = true;
                             else if (checkedCount == 0)
-                                checkBox.IsChecked = false;
+                                branchItem.IsChecked = false;
                             else
-                                checkBox.IsChecked = null; // Indeterminate
+                                branchItem.IsChecked = null; // Indeterminate
                         }
                     }
                 }
@@ -913,6 +1012,33 @@ namespace MergePilot
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"BranchComboBox_DropDownOpened error: {ex.Message}");
+            }
+            finally
+            {
+                _isUpdatingCheckBoxes = false;
+            }
+        }
+
+        /// <summary>
+        /// Recursively updates BranchItem IsChecked state from tracked branches
+        /// </summary>
+        private void UpdateBranchItemStatesFromTracked(List<object> items, HashSet<string> trackedBranches)
+        {
+            foreach (var item in items)
+            {
+                if (item is BranchItem branchItem)
+                {
+                    if (!branchItem.IsGroup)
+                    {
+                        // For leaves, update from tracked set
+                        branchItem.IsChecked = trackedBranches.Contains(branchItem.FullName);
+                    }
+                    else if (branchItem.Children.Count > 0)
+                    {
+                        // Recursively update children
+                        UpdateBranchItemStatesFromTracked(branchItem.Children.Cast<object>().ToList(), trackedBranches);
+                    }
+                }
             }
         }
 
@@ -1302,20 +1428,6 @@ namespace MergePilot
                     return true;
             }
             return false;
-        }
-
-        private void ValidateSelections()
-        {
-            bool hasRepo = PanelHasCheckedCheckBox(DynamicRepoPanel);
-            bool hasSourceBranch = GetSelectedBranchesFromComboBox(SourceBranchBox).Count > 0;
-            bool hasTargetBranch = GetSelectedBranchesFromComboBox(TargetBranchBox).Count > 0;
-
-            // Merge button: requires repo + source branches + target branches
-            btnMerge.IsEnabled = hasRepo && hasSourceBranch && hasTargetBranch;
-
-            // Pull button: requires repo + source branches ONLY (no target needed)
-            if (btnPullBranches != null)
-                btnPullBranches.IsEnabled = hasRepo && hasSourceBranch;
         }
 
         #endregion

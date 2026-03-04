@@ -70,4 +70,28 @@ namespace MergePilot
             throw new NotImplementedException();
         }
     }
+
+    /// <summary>
+    /// Converts window width to boolean (true if width > threshold)
+    /// </summary>
+    public class WidthToBoolConverter : IValueConverter
+    {
+        public int Threshold { get; set; } = 900;
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is double width && parameter is string thresholdStr && int.TryParse(thresholdStr, out int threshold))
+            {
+                return width > threshold;
+            }
+            return false;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
 }
+
+

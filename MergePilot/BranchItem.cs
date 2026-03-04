@@ -1,16 +1,36 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+
 namespace MergePilot
 {
     /// <summary>
     /// Represents a branch or branch group in a hierarchical structure
     /// </summary>
-    public class BranchItem
+    public class BranchItem : INotifyPropertyChanged
     {
+        private bool? _isChecked = false;
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
         public string Name { get; set; }
         public string FullName { get; set; } // Full branch name (e.g., "0-Task/NewUpdate")
         public bool IsGroup { get; set; } // True if this is a folder/group, false if it's an actual branch
         public int Level { get; set; } // Indentation level
         public List<BranchItem> Children { get; set; } = new();
         public BranchItem Parent { get; set; } // Reference to parent for tri-state logic
+        
+        public bool? IsChecked 
+        { 
+            get => _isChecked;
+            set 
+            { 
+                if (_isChecked != value)
+                {
+                    _isChecked = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         public BranchItem(string name, string fullName, bool isGroup = false, int level = 0, BranchItem parent = null)
         {
@@ -19,6 +39,11 @@ namespace MergePilot
             IsGroup = isGroup;
             Level = level;
             Parent = parent;
+        }
+
+        protected void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
         public override string ToString()
@@ -57,6 +82,7 @@ namespace MergePilot
                     // Branch with path
                     string groupPath = "";
                     BranchItem currentGroup = null;
+                    BranchItem parentGroup = null;
                     List<BranchItem> parentList = result;
 
                     // Build the group hierarchy
@@ -66,20 +92,13 @@ namespace MergePilot
 
                         if (!groups.TryGetValue(groupPath, out currentGroup))
                         {
-                            currentGroup = new BranchItem(parts[i], groupPath, isGroup: true, level: i, parent: null);
-                            
-                            // Set parent reference for tri-state logic
-                            if (parentList.Count > 0)
-                            {
-                                var parentItem = parentList.FirstOrDefault(x => x.IsGroup && x.FullName == (i > 0 ? groupPath.Substring(0, groupPath.LastIndexOf('/')) : ""));
-                                if (parentItem != null)
-                                    currentGroup.Parent = parentItem;
-                            }
+                            currentGroup = new BranchItem(parts[i], groupPath, isGroup: true, level: i, parent: parentGroup);
                             
                             parentList.Add(currentGroup);
                             groups[groupPath] = currentGroup;
                         }
 
+                        parentGroup = currentGroup;
                         parentList = currentGroup.Children;
                     }
 

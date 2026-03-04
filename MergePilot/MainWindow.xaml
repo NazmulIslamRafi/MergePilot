@@ -89,6 +89,7 @@ Title="Merge Pilot"
                           Margin="4,0,8,0"
                           Style="{StaticResource MultiSelectCheckBoxStyle}"
                           Tag="{Binding FullName}"
+                          IsChecked="{Binding IsChecked, Mode=TwoWay}"
                           Checked="BranchCheckBox_Changed"
                           Unchecked="BranchCheckBox_Changed"
                           IsThreeState="{Binding IsGroup}"/>
