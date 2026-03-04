@@ -9,3 +9,12 @@ obj/
 
 # IDE
 *.vsidx
+[Bb]in/
+[Oo]bj/
+.vs/
+bin/
+obj/
+*.user
+*.suo
+/MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot.AssemblyInfo.cs
+/MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot.AssemblyInfoInputs.cache
