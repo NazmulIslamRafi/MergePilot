@@ -9,29 +9,6 @@
     {
       "AbsoluteMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|d:\\work\\office_work\\us-bangla\\gitlab\\mergepilot\\mergepilot\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|solutionrelative:mergepilot\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Md Nazmul Islam\\AppData\\Local\\Temp\\.vsdbgsrc\\b64273f081f0e92e2376a08a905c5a7a9054ee185813b51662a2df10568e51be\\Storyboard.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|d:\\work\\office_work\\us-bangla\\gitlab\\mergepilot\\mergepilot\\app.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
-      "RelativeMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|solutionrelative:mergepilot\\app.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|d:\\work\\office_work\\us-bangla\\gitlab\\mergepilot\\mergepilot\\relaycommand.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|solutionrelative:mergepilot\\relaycommand.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|d:\\work\\office_work\\us-bangla\\gitlab\\mergepilot\\mergepilot\\widthtoboolconverter.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|solutionrelative:mergepilot\\widthtoboolconverter.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|d:\\work\\office_work\\us-bangla\\gitlab\\mergepilot\\mergepilot\\appsettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|solutionrelative:mergepilot\\appsettings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|d:\\work\\office_work\\us-bangla\\gitlab\\mergepilot\\mergepilot\\githelper.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|solutionrelative:mergepilot\\githelper.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -52,43 +29,7 @@
               "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\MainWindow.xaml",
               "RelativeToolTip": "MergePilot\\MainWindow.xaml",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2026-02-19T17:38:07.542Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "Storyboard.cs",
-              "DocumentMoniker": "C:\\Users\\Md Nazmul Islam\\AppData\\Local\\Temp\\.vsdbgsrc\\b64273f081f0e92e2376a08a905c5a7a9054ee185813b51662a2df10568e51be\\Storyboard.cs",
-              "ToolTip": "C:\\Users\\Md Nazmul Islam\\AppData\\Local\\Temp\\.vsdbgsrc\\b64273f081f0e92e2376a08a905c5a7a9054ee185813b51662a2df10568e51be\\Storyboard.cs [Read Only]",
-              "ViewState": "AgIAAD4BAAAAAAAAAAAQwEgBAAADAAAAAQAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-28T12:50:06.002Z",
-              "EditorCaption": " [Read Only]"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "App.xaml",
-              "DocumentMoniker": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\App.xaml",
-              "RelativeDocumentMoniker": "MergePilot\\App.xaml",
-              "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\App.xaml",
-              "RelativeToolTip": "MergePilot\\App.xaml",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2026-02-28T11:45:44.614Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 7,
-              "Title": "GitHelper.cs",
-              "DocumentMoniker": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\GitHelper.cs",
-              "RelativeDocumentMoniker": "MergePilot\\GitHelper.cs",
-              "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\GitHelper.cs",
-              "RelativeToolTip": "MergePilot\\GitHelper.cs",
-              "ViewState": "AgIAAIYBAAAAAAAAAAAAAAoAAAAUAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-19T17:36:31.299Z",
+              "WhenOpened": "2026-02-28T17:32:50.995Z",
               "EditorCaption": ""
             },
             {
@@ -99,49 +40,9 @@
               "RelativeDocumentMoniker": "MergePilot\\MainWindow.xaml.cs",
               "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\MainWindow.xaml.cs",
               "RelativeToolTip": "MergePilot\\MainWindow.xaml.cs",
-              "ViewState": "AgIAAGsAAAAAAAAAAAAkwHYAAAAuAAAAAAAAAA==",
+              "ViewState": "AgIAACsAAAAAAAAAAAAlwCsAAABLAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-28T08:09:28.546Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 6,
-              "Title": "AppSettings.cs",
-              "DocumentMoniker": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\AppSettings.cs",
-              "RelativeDocumentMoniker": "MergePilot\\AppSettings.cs",
-              "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\AppSettings.cs",
-              "RelativeToolTip": "MergePilot\\AppSettings.cs",
-              "ViewState": "AgIAABgAAAAAAAAAAIBIwAwAAAA3AAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-20T10:29:58.701Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "RelayCommand.cs",
-              "DocumentMoniker": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\RelayCommand.cs",
-              "RelativeDocumentMoniker": "MergePilot\\RelayCommand.cs",
-              "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\RelayCommand.cs",
-              "RelativeToolTip": "MergePilot\\RelayCommand.cs",
-              "ViewState": "AgIAAAMAAAAAAAAAAAAAABsAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-20T04:56:53.812Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 5,
-              "Title": "WidthToBoolConverter.cs",
-              "DocumentMoniker": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\WidthToBoolConverter.cs",
-              "RelativeDocumentMoniker": "MergePilot\\WidthToBoolConverter.cs",
-              "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\WidthToBoolConverter.cs",
-              "RelativeToolTip": "MergePilot\\WidthToBoolConverter.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAA0AAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-26T03:07:02.054Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-28T17:32:46.532Z"
             }
           ]
         },
