@@ -9,14 +9,6 @@
     {
       "AbsoluteMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|d:\\work\\office_work\\us-bangla\\gitlab\\mergepilot\\mergepilot\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|solutionrelative:mergepilot\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|d:\\work\\office_work\\us-bangla\\gitlab\\mergepilot\\mergepilot\\branchitem.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|solutionrelative:mergepilot\\branchitem.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|d:\\work\\office_work\\us-bangla\\gitlab\\mergepilot\\mergepilot\\branchconverters.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D24DD5B1-D772-4B9E-8A38-A52B77856B28}|MergePilot\\MergePilot.csproj|solutionrelative:mergepilot\\branchconverters.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -26,34 +18,8 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 2,
+          "SelectedChildIndex": 0,
           "Children": [
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "BranchConverters.cs",
-              "DocumentMoniker": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\BranchConverters.cs",
-              "RelativeDocumentMoniker": "MergePilot\\BranchConverters.cs",
-              "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\BranchConverters.cs",
-              "RelativeToolTip": "MergePilot\\BranchConverters.cs",
-              "ViewState": "AgIAAF4AAAAAAAAAAIBJwGEAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-03-04T08:50:50.697Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "BranchItem.cs",
-              "DocumentMoniker": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\BranchItem.cs",
-              "RelativeDocumentMoniker": "MergePilot\\BranchItem.cs",
-              "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\BranchItem.cs",
-              "RelativeToolTip": "MergePilot\\BranchItem.cs",
-              "ViewState": "AgIAACwAAAAAAAAAAIBJwKQAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-03-04T08:50:14.902Z",
-              "EditorCaption": ""
-            },
             {
               "$type": "Document",
               "DocumentIndex": 0,
@@ -74,10 +40,9 @@
               "RelativeDocumentMoniker": "MergePilot\\MainWindow.xaml.cs",
               "ToolTip": "D:\\work\\office_work\\US-Bangla\\gitlab\\MergePilot\\MergePilot\\MainWindow.xaml.cs",
               "RelativeToolTip": "MergePilot\\MainWindow.xaml.cs",
-              "ViewState": "AgIAAAUDAAAAAAAAAAAlwNECAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAACsAAAAAAAAAAAAlwCsAAABLAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-28T17:32:46.532Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-28T17:32:46.532Z"
             }
           ]
         },
