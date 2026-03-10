@@ -18,3 +18,8 @@ obj/
 *.suo
 /MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot.AssemblyInfo.cs
 /MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot.AssemblyInfoInputs.cache
+/MergePilot/obj/MergePilot.csproj.nuget.dgspec.json
+/MergePilot/obj/MergePilot.csproj.nuget.g.props
+/MergePilot/obj/MergePilot.csproj.nuget.g.targets
+/MergePilot/obj/project.assets.json
+/MergePilot/obj/project.nuget.cache
