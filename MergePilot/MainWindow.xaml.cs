@@ -173,7 +173,7 @@ namespace MergePilot
                     {
                         Content = repo.Name ?? repo.Path,
                         Tag = repo.Path,
-                        Foreground = BrushFromHex("#CBD5E1"),
+                        Style = (System.Windows.Style)this.Resources["DynamicRepoCheckBoxStyle"],
                         Margin = new System.Windows.Thickness(0, 0, 15, 0)
                     };
                     cb.Checked += CheckBox_Changed;

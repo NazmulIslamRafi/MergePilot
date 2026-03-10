@@ -73,7 +73,7 @@ Title="Merge Pilot"
         <!-- Dynamic Repository CheckBox Style -->
         <Style TargetType="CheckBox" x:Key="DynamicRepoCheckBoxStyle">
             <Setter Property="Margin" Value="0 0 15 0"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="#CBD5E1"/>
             <Setter Property="BorderBrush" Value="#334155"/>
             <Setter Property="BorderThickness" Value="1"/>
         </Style>
