@@ -711,13 +711,14 @@ namespace MergePilot
         /// </summary>
         private void ValidateSelections()
         {
-            bool hasSourceBranches = _checkedSourceBranches.Count > 0;
+            bool hasExactlyOneSourceBranch = _checkedSourceBranches.Count == 1;
             bool hasTargetBranches = _checkedTargetBranches.Count > 0;
+            bool hasSourceBranches = _checkedSourceBranches.Count > 0;
 
-            // Merge button: needs both source and target branches selected
-            btnMerge.IsEnabled = hasSourceBranches && hasTargetBranches;
+            // Merge button: needs EXACTLY 1 source branch and at least 1 target branch
+            btnMerge.IsEnabled = hasExactlyOneSourceBranch && hasTargetBranches;
 
-            // Pull button: needs source branches selected
+            // Pull button: needs at least 1 source branch selected
             btnPullBranches.IsEnabled = hasSourceBranches;
         }
 
