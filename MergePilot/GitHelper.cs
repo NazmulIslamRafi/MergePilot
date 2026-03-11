@@ -189,10 +189,14 @@ namespace MergePilot
             if (string.IsNullOrWhiteSpace(remoteOut))
                 return new BranchUpdateResult(false, $"Remote branch '{branch}' not found on origin.");
 
-            var remoteSha = remoteOut.Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries)[0].Trim();
+            var remoteSha = remoteOut?.Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
 
-            if (localSha.Equals(remoteSha, StringComparison.OrdinalIgnoreCase))
-                return new BranchUpdateResult(true, $"'{branch}' is already up-to-date ({(localSha.Length >= 7 ? localSha.Substring(0, 7) : localSha)}).");
+            if (string.Equals(localSha, remoteSha, StringComparison.OrdinalIgnoreCase))
+            {
+                var shortSha = localSha?.Length > 7 ? localSha[..7] : localSha;
+
+                return new BranchUpdateResult(true, $"'{branch}' is already up-to-date ({shortSha}).");
+            }
 
             // 4) fetch latest into local branch
             var fetch = await RetryRunGitCommandAsync(repoPath, $"fetch --no-tags origin {branch}:{branch}", 3, TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
