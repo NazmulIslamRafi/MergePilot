@@ -1292,7 +1292,7 @@ namespace MergePilot
 
                 // Final summary for pull operation
                 AppendOutput(LogFormatter.FormatFinalSummary("PULL / FETCH OPERATION", successList, skipList, failList),true);
-                AppendOutput("🎉 Pull operation finished.");
+                AppendOutput("🎉 Pull operation finished.\n");
             }
             finally
             {
@@ -1741,13 +1741,13 @@ namespace MergePilot
                 if (dlg.ShowDialog(this) == true)
                 {
                     var combined = new StringBuilder();
-                    combined.AppendLine(SectionSeparator);
-                    combined.AppendLine("--- OUTPUT ---");
-                    combined.AppendLine(SectionSeparator);
+                    combined.Append(SectionSeparator + "\n");
+                    combined.Append("--- OUTPUT ---\n");
+                    combined.Append(SectionSeparator + "\n");
                     combined.Append(_outputMaster.ToString());
-                    combined.AppendLine(SectionSeparator);
-                    combined.AppendLine("--- ERRORS ---");
-                    combined.AppendLine(SectionSeparator);
+                    combined.Append(SectionSeparator + "\n");
+                    combined.Append("--- ERRORS ---\n");
+                    combined.Append(SectionSeparator + "\n");
                     combined.Append(_errorMaster.ToString());
                     System.IO.File.WriteAllText(dlg.FileName, combined.ToString());
                 }
@@ -1763,13 +1763,13 @@ namespace MergePilot
             try
             {
                 var combined = new StringBuilder();
-                combined.AppendLine(SectionSeparator);
-                combined.AppendLine("--- OUTPUT ---");
-                combined.AppendLine(SectionSeparator);
+                combined.Append(SectionSeparator + "\n");
+                combined.Append("--- OUTPUT ---\n");
+                combined.Append(SectionSeparator + "\n");
                 combined.Append(_outputMaster.ToString());
-                combined.AppendLine(SectionSeparator);
-                combined.AppendLine("--- ERRORS ---");
-                combined.AppendLine(SectionSeparator);
+                combined.Append(SectionSeparator + "\n");
+                combined.Append("--- ERRORS ---\n");
+                combined.Append(SectionSeparator + "\n");
                 combined.Append(_errorMaster.ToString());
                 System.Windows.Clipboard.SetText(combined.ToString());
             }
@@ -1794,26 +1794,26 @@ namespace MergePilot
         private void GenerateAndLogSummary(string title, List<string> success, List<string> skipped, List<string> failed)
         {
             var sb = new StringBuilder();
-            sb.AppendLine(SectionSeparator);
-            sb.AppendLine($"========== {title} ==========");
-            sb.AppendLine(SectionSeparator);
-            sb.AppendLine($"Timestamp: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-            sb.AppendLine($"✅ SUCCESSFUL ({success.Count}):");
+            sb.Append(SectionSeparator + "\n");
+            sb.Append($"========== {title} ==========\n");
+            sb.Append(SectionSeparator + "\n");
+            sb.Append($"Timestamp: {DateTime.Now:yyyy-MM-dd HH:mm:ss}\n");
+            sb.Append($"✅ SUCCESSFUL ({success.Count}):\n");
             if (success.Count > 0)
             {
-                foreach (var s in success) sb.AppendLine($" ✔ {s}");
+                foreach (var s in success) sb.Append($" ✔ {s}\n");
             }
 
-            sb.AppendLine($"⏭ SKIPPED ({skipped.Count}):");
+            sb.Append($"⏭ SKIPPED ({skipped.Count}):\n");
             if (skipped.Count > 0)
             {
-                foreach (var s in skipped) sb.AppendLine($" ⏭ {s}");
+                foreach (var s in skipped) sb.Append($" ⏭ {s}\n");
             }
 
-            sb.AppendLine($"❌ FAILED ({failed.Count}):");
+            sb.Append($"❌ FAILED ({failed.Count}):\n");
             if (failed.Count > 0)
             {
-                foreach (var f in failed) sb.AppendLine($" ❌ {f}");
+                foreach (var f in failed) sb.Append($" ❌ {f}\n");
             }
 
             var summary = sb.ToString();

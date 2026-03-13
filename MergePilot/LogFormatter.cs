@@ -61,9 +61,9 @@ namespace MergePilot
         {
             var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
             var sb = new StringBuilder();
-            sb.AppendLine(SectionSeparator);
-            sb.AppendLine($"$ {operationType} : " + $"[{timestamp}]");
-            sb.AppendLine(SectionSeparator);
+            sb.Append(SectionSeparator + "\n");
+            sb.Append($"$ {operationType} : " + $"[{timestamp}]\n");
+            sb.Append(SectionSeparator + "\n");
             return sb.ToString();
         }
 
@@ -73,9 +73,9 @@ namespace MergePilot
         public static string FormatProjectHeader(string projectName, string repoPath)
         {
             var sb = new StringBuilder();
-            sb.AppendLine(SectionSeparator);
-            sb.AppendLine($"📁 {projectName} => " + $"Path: {repoPath}");
-            sb.AppendLine(SectionSeparator);
+            sb.Append(SectionSeparator + "\n");
+            sb.Append($"📁 {projectName} => " + $"Path: {repoPath}\n");
+            sb.Append(SectionSeparator + "\n");
             return sb.ToString();
         }
 
@@ -85,9 +85,9 @@ namespace MergePilot
         public static string FormatBranchOperationHeader(string sourceBranch, string targetBranch)
         {
             var sb = new StringBuilder();
-            sb.AppendLine(SectionSeparator);
-            sb.AppendLine($"🔀 {sourceBranch} → {targetBranch}");
-            sb.AppendLine(SectionSeparator);
+            sb.Append(SectionSeparator + "\n");
+            sb.Append($"🔀 {sourceBranch} → {targetBranch}\n");
+            sb.Append(SectionSeparator + "\n");
             return sb.ToString();
         }
 
@@ -97,9 +97,9 @@ namespace MergePilot
         public static string FormatPullOperationHeader(string branchName)
         {
             var sb = new StringBuilder();
-            sb.AppendLine(SectionSeparator);
-            sb.AppendLine($"📥 Pulling : {branchName}");
-            sb.AppendLine(SectionSeparator);
+            sb.Append(SectionSeparator + "\n");
+            sb.Append($"📥 Pulling : {branchName}\n");
+            sb.Append(SectionSeparator + "\n");
             return sb.ToString();
         }
 
@@ -109,43 +109,43 @@ namespace MergePilot
         public static string FormatFinalSummary(string title, List<string> successList, List<string> skipList, List<string> failList)
         {
             var sb = new StringBuilder();
-            sb.AppendLine(SectionSeparator);
-            sb.AppendLine($"📊 {title} : " + $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}]");
-            sb.AppendLine(SectionSeparator);
+            sb.Append(SectionSeparator + "\n");
+            sb.Append($"📊 {title} : " + $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}]\n");
+            sb.Append(SectionSeparator + "\n");
 
             // Successful operations
-            sb.AppendLine($"✅ SUCCESSFUL ({successList.Count})  :");
+            sb.Append($"✅ SUCCESSFUL ({successList.Count})  :\n");
             if (successList.Count > 0)
             {
                 foreach (var item in successList)
                 {
-                    sb.AppendLine($" ✔ {item}");
+                    sb.Append($" ✔ {item}\n");
                 }
             }
 
             // Skipped operations
-            sb.AppendLine($"⏭ SKIPPED ({skipList.Count}):");
+            sb.Append($"⏭ SKIPPED ({skipList.Count}):\n");
             if (skipList.Count > 0)
             {
                 foreach (var item in skipList)
                 {
-                    sb.AppendLine($" ⏭ {item}");
+                    sb.Append($" ⏭ {item}\n");
                 }
             }
 
             // Failed operations
-            sb.AppendLine($"❌ FAILED ({failList.Count}):");
+            sb.Append($"❌ FAILED ({failList.Count}):\n");
             if (failList.Count > 0)
             {
                 foreach (var item in failList)
                 {
-                    sb.AppendLine($" ❌ {item}");
+                    sb.Append($" ❌ {item}\n");
                 }
             }
 
-            sb.AppendLine(SectionSeparator);
-            sb.AppendLine($"Total: {successList.Count + skipList.Count + failList.Count} operations processed");
-            sb.AppendLine(SectionSeparator);
+            sb.Append(SectionSeparator + "\n");
+            sb.Append($"Total: {successList.Count + skipList.Count + failList.Count} operations processed.\n");
+            sb.Append(SectionSeparator + "\n");
 
             return sb.ToString();
         }
@@ -157,48 +157,48 @@ namespace MergePilot
             List<string> successBranches, List<string> skippedBranches, List<string> failedBranches)
         {
             var sb = new StringBuilder();
-            sb.AppendLine(SectionSeparator);
-            sb.AppendLine($"📋 Summary for {projectName}");
-            sb.AppendLine(SectionSeparator);
+            sb.Append("\n" + SectionSeparator + "\n");
+            sb.Append($"📋 Summary for {projectName} \n");
+            sb.Append(SectionSeparator + "\n");
 
             if (successBranches.Count > 0)
             {
-                sb.AppendLine($"✅ Updated ({successBranches.Count}):");
+                sb.Append($"✅ Updated ({successBranches.Count}):\n");
                 foreach (var branch in successBranches)
                 {
-                    sb.AppendLine($" ✔ {branch}");
+                    sb.Append($" ✔ {branch}\n");
                 }
             }
 
             if (skippedBranches.Count > 0)
             {
-                sb.AppendLine($"⏭ Skipped - Already Up-to-date ({skippedBranches.Count}):");
+                sb.Append($"⏭ Skipped - Already Up-to-date ({skippedBranches.Count}):\n");
                 foreach (var branch in skippedBranches)
                 {
-                    sb.AppendLine($" ⏭ {branch}");
+                    sb.Append($" ⏭ {branch}\n");
                 }
             }
 
             if (failedBranches.Count > 0)
             {
-                sb.AppendLine($"❌ Failed ({failedBranches.Count}):");
+                sb.Append($"❌ Failed ({failedBranches.Count}):\n");
                 foreach (var branch in failedBranches)
                 {
-                    sb.AppendLine($" ❌ {branch}");
+                    sb.Append($" ❌ {branch}\n");
                 }
             }
 
             if (failedBranches.Count == 0 && successBranches.Count == 0 && skippedBranches.Count == 0)
             {
-                sb.AppendLine(SectionSeparator);
-                sb.AppendLine("ℹ️ No operations to process.");
-                sb.AppendLine(SectionSeparator);
+                sb.Append(SectionSeparator + "\n");
+                sb.Append("ℹ️ No operations to process.\n");
+                sb.Append(SectionSeparator + "\n");
             }
             else if (failedBranches.Count == 0)
             {
-                sb.AppendLine(SectionSeparator);
-                sb.AppendLine("ℹ️ All operations completed successfully!");
-                sb.AppendLine(SectionSeparator);
+                sb.Append(SectionSeparator + "\n");
+                sb.Append("ℹ️ All operations completed successfully!\n");
+                sb.Append(SectionSeparator + "\n");
             }
 
             return sb.ToString();
