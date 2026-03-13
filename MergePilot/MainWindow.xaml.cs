@@ -23,6 +23,10 @@ namespace MergePilot
 {
     public partial class MainWindow : MetroWindow
     {
+        // Separators
+        private const string SectionSeparator = "===============================================";
+        private const string SubSectionSeparator = "-----------------------------------------------";
+
         private readonly ConcurrentQueue<string> _outputQueue = new();
         private readonly ConcurrentQueue<string> _errorQueue = new();
         private readonly DispatcherTimer _logFlushTimer;
@@ -434,7 +438,7 @@ namespace MergePilot
             var targets = GetSelectedBranchesFromComboBox(TargetBranchBox);
             var repoPaths = GetSelectedRepositories();
 
-            AppendOutput(LogFormatter.FormatOperationStart("MERGE OPERATION"));
+            AppendOutput(LogFormatter.FormatOperationStart("MERGE OPERATION"),true);
 
             try
             {
@@ -457,7 +461,7 @@ namespace MergePilot
 
                 foreach (var repo in repoPaths)
                 {
-                    AppendOutput(LogFormatter.FormatProjectHeader(System.IO.Path.GetFileName(repo), repo));
+                    AppendOutput(LogFormatter.FormatProjectHeader(System.IO.Path.GetFileName(repo), repo), true);
                     if (!System.IO.Directory.Exists(repo) || !System.IO.Directory.Exists(System.IO.Path.Combine(repo, ".git")))
                     {
                         AppendError($"❌ Repository path not found or not a git repo: {repo}");
@@ -474,7 +478,7 @@ namespace MergePilot
                     {
                         foreach (var targetBranch in targets)
                         {
-                            AppendOutput(LogFormatter.FormatBranchOperationHeader(source, targetBranch));
+                            AppendOutput(LogFormatter.FormatBranchOperationHeader(source, targetBranch), true);
 
                             try
                             {
@@ -646,7 +650,7 @@ namespace MergePilot
                     } // source branches
 
                     // Project-level summary
-                    AppendOutput(LogFormatter.FormatProjectSummary(System.IO.Path.GetFileName(repo), repoSuccessList, repoSkipList, repoFailList));
+                    AppendOutput(LogFormatter.FormatProjectSummary(System.IO.Path.GetFileName(repo), repoSuccessList, repoSkipList, repoFailList), true);
                 } // repo
             }
             finally
@@ -657,8 +661,8 @@ namespace MergePilot
                     btnMerge.IsEnabled = true;
                 });
                 // Final summary (log to single log window)
-                AppendOutput(LogFormatter.FormatFinalSummary("MERGE OPERATION", successList, skipList, failList));
-                AppendOutput("\n🎉 Merging finished.\n");
+                AppendOutput(LogFormatter.FormatFinalSummary("MERGE OPERATION", successList, skipList, failList), true);
+                AppendOutput("🎉 Merging finished.");
             }
         }
 
@@ -1223,7 +1227,7 @@ namespace MergePilot
                 var repoPaths = GetSelectedRepositories();
                 var sourceBranches = GetSelectedBranchesFromComboBox(SourceBranchBox);
 
-                AppendOutput(LogFormatter.FormatOperationStart("PULL / FETCH OPERATION"));
+                AppendOutput(LogFormatter.FormatOperationStart("PULL / FETCH OPERATION"), true);
 
                 if (sourceBranches.Count == 0)
                 {
@@ -1233,7 +1237,7 @@ namespace MergePilot
 
                 foreach (var repo in repoPaths)
                 {
-                    AppendOutput(LogFormatter.FormatProjectHeader(System.IO.Path.GetFileName(repo), repo));
+                    AppendOutput(LogFormatter.FormatProjectHeader(System.IO.Path.GetFileName(repo), repo), true);
                     if (!System.IO.Directory.Exists(repo) || !System.IO.Directory.Exists(System.IO.Path.Combine(repo, ".git")))
                     {
                         AppendError($"❌ Repository path not found or not a git repo: {repo}");
@@ -1247,7 +1251,6 @@ namespace MergePilot
 
                     foreach (var branch in sourceBranches)
                     {
-                        AppendOutput(LogFormatter.FormatPullOperationHeader(branch));
                         try
                         {
                             var result = await GitHelper.EnsureBranchLatestAsync(repo, branch, cts.Token);
@@ -1284,12 +1287,12 @@ namespace MergePilot
                     }
 
                     // Project-level summary
-                    AppendOutput(LogFormatter.FormatProjectSummary(System.IO.Path.GetFileName(repo), repoSuccessList, repoSkipList, repoFailList));
+                    AppendOutput(LogFormatter.FormatProjectSummary(System.IO.Path.GetFileName(repo), repoSuccessList, repoSkipList, repoFailList),true);
                 }
 
                 // Final summary for pull operation
-                AppendOutput(LogFormatter.FormatFinalSummary("PULL / FETCH OPERATION", successList, skipList, failList));
-                AppendOutput("\n🎉 Pull operation finished.\n");
+                AppendOutput(LogFormatter.FormatFinalSummary("PULL / FETCH OPERATION", successList, skipList, failList),true);
+                AppendOutput("🎉 Pull operation finished.");
             }
             finally
             {
@@ -1571,10 +1574,14 @@ namespace MergePilot
             // Filter functionality removed - single log output
         }
 
-        private void AppendOutput(string text)
+        private void AppendOutput(string text, bool status = false)
         {
             var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-            var line = $"[{timestamp}] {text}\n";
+            var line = "";
+            if (status)
+                line = $"{text}";
+            else
+                line = $"[{timestamp}] {text}";
             _outputQueue.Enqueue(line);
             _outputMaster.Append(line);
         }
@@ -1582,7 +1589,7 @@ namespace MergePilot
         private void AppendError(string text)
         {
             var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-            var line = $"[{timestamp}] {text}\n";
+            var line = $"[{timestamp}] {text}";
             _errorQueue.Enqueue(line);
             _errorMaster.Append(line);
         }
@@ -1734,10 +1741,13 @@ namespace MergePilot
                 if (dlg.ShowDialog(this) == true)
                 {
                     var combined = new StringBuilder();
+                    combined.AppendLine(SectionSeparator);
                     combined.AppendLine("--- OUTPUT ---");
+                    combined.AppendLine(SectionSeparator);
                     combined.Append(_outputMaster.ToString());
-                    combined.AppendLine();
+                    combined.AppendLine(SectionSeparator);
                     combined.AppendLine("--- ERRORS ---");
+                    combined.AppendLine(SectionSeparator);
                     combined.Append(_errorMaster.ToString());
                     System.IO.File.WriteAllText(dlg.FileName, combined.ToString());
                 }
@@ -1753,10 +1763,13 @@ namespace MergePilot
             try
             {
                 var combined = new StringBuilder();
+                combined.AppendLine(SectionSeparator);
                 combined.AppendLine("--- OUTPUT ---");
+                combined.AppendLine(SectionSeparator);
                 combined.Append(_outputMaster.ToString());
-                combined.AppendLine();
+                combined.AppendLine(SectionSeparator);
                 combined.AppendLine("--- ERRORS ---");
+                combined.AppendLine(SectionSeparator);
                 combined.Append(_errorMaster.ToString());
                 System.Windows.Clipboard.SetText(combined.ToString());
             }
@@ -1775,41 +1788,33 @@ namespace MergePilot
             catch { }
         }
 
-        private void sldFlushInterval_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            // Flush interval control removed
-        }
 
         // Old detached LogWindow removed; inline logs used instead
 
         private void GenerateAndLogSummary(string title, List<string> success, List<string> skipped, List<string> failed)
         {
             var sb = new StringBuilder();
-            sb.AppendLine();
-            sb.AppendLine($"=== {title} ===");
+            sb.AppendLine(SectionSeparator);
+            sb.AppendLine($"========== {title} ==========");
+            sb.AppendLine(SectionSeparator);
             sb.AppendLine($"Timestamp: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
             sb.AppendLine($"✅ SUCCESSFUL ({success.Count}):");
             if (success.Count > 0)
             {
-                foreach (var s in success) sb.AppendLine($"  ✔ {s}");
+                foreach (var s in success) sb.AppendLine($" ✔ {s}");
             }
-            else sb.AppendLine("  None");
 
-            sb.AppendLine();
             sb.AppendLine($"⏭ SKIPPED ({skipped.Count}):");
             if (skipped.Count > 0)
             {
-                foreach (var s in skipped) sb.AppendLine($"  ⏭ {s}");
+                foreach (var s in skipped) sb.AppendLine($" ⏭ {s}");
             }
-            else sb.AppendLine("  None");
 
-            sb.AppendLine();
             sb.AppendLine($"❌ FAILED ({failed.Count}):");
             if (failed.Count > 0)
             {
-                foreach (var f in failed) sb.AppendLine($"  ❌ {f}");
+                foreach (var f in failed) sb.AppendLine($" ❌ {f}");
             }
-            else sb.AppendLine("  None");
 
             var summary = sb.ToString();
             AppendOutput(summary);

@@ -18,18 +18,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Page Remove="Converters.xaml" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="MahApps.Metro" Version="2.4.10" />
 	  <PackageReference Include="MaterialDesignColors" Version="2.1.4" />
 	  <!--<PackageReference Include="MaterialDesignColors" Version="2.1.4" />-->
     <PackageReference Include="MaterialDesignThemes" Version="4.9.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Resource Include="Converters.xaml" />
   </ItemGroup>
 
 </Project>

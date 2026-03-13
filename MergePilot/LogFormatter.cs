@@ -61,8 +61,9 @@ namespace MergePilot
         {
             var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
             var sb = new StringBuilder();
+            sb.AppendLine(SectionSeparator);
             sb.AppendLine($"$ {operationType} : " + $"[{timestamp}]");
-            sb.AppendLine();
+            sb.AppendLine(SectionSeparator);
             return sb.ToString();
         }
 
@@ -72,7 +73,9 @@ namespace MergePilot
         public static string FormatProjectHeader(string projectName, string repoPath)
         {
             var sb = new StringBuilder();
+            sb.AppendLine(SectionSeparator);
             sb.AppendLine($"📁 {projectName} => " + $"Path: {repoPath}");
+            sb.AppendLine(SectionSeparator);
             return sb.ToString();
         }
 
@@ -82,7 +85,9 @@ namespace MergePilot
         public static string FormatBranchOperationHeader(string sourceBranch, string targetBranch)
         {
             var sb = new StringBuilder();
+            sb.AppendLine(SectionSeparator);
             sb.AppendLine($"🔀 {sourceBranch} → {targetBranch}");
+            sb.AppendLine(SectionSeparator);
             return sb.ToString();
         }
 
@@ -92,7 +97,9 @@ namespace MergePilot
         public static string FormatPullOperationHeader(string branchName)
         {
             var sb = new StringBuilder();
+            sb.AppendLine(SectionSeparator);
             sb.AppendLine($"📥 Pulling : {branchName}");
+            sb.AppendLine(SectionSeparator);
             return sb.ToString();
         }
 
@@ -102,12 +109,12 @@ namespace MergePilot
         public static string FormatFinalSummary(string title, List<string> successList, List<string> skipList, List<string> failList)
         {
             var sb = new StringBuilder();
-            sb.AppendLine($"============================================");
+            sb.AppendLine(SectionSeparator);
             sb.AppendLine($"📊 {title} : " + $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}]");
-            sb.AppendLine($"============================================");
+            sb.AppendLine(SectionSeparator);
 
             // Successful operations
-            sb.AppendLine($"✅ SUCCESSFUL ({successList.Count}):");
+            sb.AppendLine($"✅ SUCCESSFUL ({successList.Count})  :");
             if (successList.Count > 0)
             {
                 foreach (var item in successList)
@@ -136,9 +143,9 @@ namespace MergePilot
                 }
             }
 
-            sb.AppendLine($"============================================");
+            sb.AppendLine(SectionSeparator);
             sb.AppendLine($"Total: {successList.Count + skipList.Count + failList.Count} operations processed");
-            sb.AppendLine($"============================================");
+            sb.AppendLine(SectionSeparator);
 
             return sb.ToString();
         }
@@ -150,7 +157,7 @@ namespace MergePilot
             List<string> successBranches, List<string> skippedBranches, List<string> failedBranches)
         {
             var sb = new StringBuilder();
-            sb.AppendLine();
+            sb.AppendLine(SectionSeparator);
             sb.AppendLine($"📋 Summary for {projectName}");
             sb.AppendLine(SectionSeparator);
 
@@ -183,14 +190,17 @@ namespace MergePilot
 
             if (failedBranches.Count == 0 && successBranches.Count == 0 && skippedBranches.Count == 0)
             {
+                sb.AppendLine(SectionSeparator);
                 sb.AppendLine("ℹ️ No operations to process.");
+                sb.AppendLine(SectionSeparator);
             }
             else if (failedBranches.Count == 0)
             {
+                sb.AppendLine(SectionSeparator);
                 sb.AppendLine("ℹ️ All operations completed successfully!");
+                sb.AppendLine(SectionSeparator);
             }
 
-            sb.AppendLine();
             return sb.ToString();
         }
 
@@ -205,3 +215,4 @@ namespace MergePilot
         public static string FormatProgress(string message) => $"▶️ {message}";
     }
 }
+
