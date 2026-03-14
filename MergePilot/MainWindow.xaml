@@ -45,6 +45,19 @@ Title="Merge Pilot"
         <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         <local:BoolToFontWeightConverter x:Key="BoolToFontWeightConverter" />
 
+        <!-- Color Scheme from Bash Script -->
+        <Color x:Key="SuccessGreenColor">#22C55E</Color>
+        <Color x:Key="WarningYellowColor">#EAB308</Color>
+        <Color x:Key="ErrorRedColor">#EF4444</Color>
+        <Color x:Key="InfoBlueColor">#3B82F6</Color>
+        <Color x:Key="SecondaryBlueColor">#60A5FA</Color>
+
+        <SolidColorBrush x:Key="SuccessGreenBrush" Color="{StaticResource SuccessGreenColor}"/>
+        <SolidColorBrush x:Key="WarningYellowBrush" Color="{StaticResource WarningYellowColor}"/>
+        <SolidColorBrush x:Key="ErrorRedBrush" Color="{StaticResource ErrorRedColor}"/>
+        <SolidColorBrush x:Key="InfoBlueBrush" Color="{StaticResource InfoBlueColor}"/>
+        <SolidColorBrush x:Key="SecondaryBlueBrush" Color="{StaticResource SecondaryBlueColor}"/>
+
         <Style TargetType="CheckBox" x:Key="ResponsiveCheckBoxStyle">
             <Setter Property="Margin" Value="0 0 15 0"/>
             <Setter Property="Foreground" Value="#0284C7"/>
@@ -73,7 +86,7 @@ Title="Merge Pilot"
         <!-- Dynamic Repository CheckBox Style -->
         <Style TargetType="CheckBox" x:Key="DynamicRepoCheckBoxStyle">
             <Setter Property="Margin" Value="0 0 15 0"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Foreground" Value="#CBD5E1"/>
             <Setter Property="BorderBrush" Value="#334155"/>
             <Setter Property="BorderThickness" Value="1"/>
         </Style>
@@ -541,7 +554,7 @@ Title="Merge Pilot"
                 <StackPanel>
                     <TextBlock Text="📜 Log Output"
                            Foreground="#CBD5E1"
-                           FontSize="13"
+                           FontSize="11"
                            FontWeight="SemiBold"
                            FontFamily="Alkatra SemiBold"
                            Margin="0 0 0 2"/>
@@ -550,9 +563,9 @@ Title="Merge Pilot"
                     <Border Height="1" Background="#1E293B" Margin="0 0 0 2"/>
 
                     <!-- Single Log Display -->
-                    <Border Background="#0F1724" CornerRadius="6" Padding="5" Height="400">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
-                            <RichTextBox x:Name="OutputBox" IsReadOnly="True" FontFamily="Alkatra SemiBold" FontSize="11" Background="#0F1724" Foreground="#E2E8F0" BorderThickness="0" />
+                    <Border Background="#0F1724" CornerRadius="6" Padding="5" Height="430" RenderOptions.CachingHint="Cache">
+                        <ScrollViewer x:Name="LogScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" CanContentScroll="False">
+                            <RichTextBox x:Name="OutputBox" IsReadOnly="True" FontFamily="Alkatra" FontSize="11" Background="#0F1724" Foreground="#E2E8F0" BorderThickness="0" Margin="0" Padding="5" TextOptions.TextRenderingMode="Auto" />
                         </ScrollViewer>
                     </Border>
                 </StackPanel>

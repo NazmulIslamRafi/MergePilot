@@ -23,6 +23,10 @@ namespace MergePilot
 {
     public partial class MainWindow : MetroWindow
     {
+        // Separators
+        private const string SectionSeparator = "===============================================";
+        private const string SubSectionSeparator = "-----------------------------------------------";
+
         private readonly ConcurrentQueue<string> _outputQueue = new();
         private readonly ConcurrentQueue<string> _errorQueue = new();
         private readonly DispatcherTimer _logFlushTimer;
@@ -53,6 +57,12 @@ namespace MergePilot
         // Prevent re-entrant checkbox events
         private bool _isUpdatingCheckBoxes = false;
 
+        // Smooth scrolling optimization
+        private DispatcherTimer? _smoothScrollTimer;
+        private double _targetScrollOffset = 0;
+        private int _displayedLineCount = 0;
+        private const int MaxDisplayedLines = 2000; // Limit lines in view for performance
+
         public MainWindow()
         {
             InitializeComponent();
@@ -61,10 +71,24 @@ namespace MergePilot
             ValidateSelections();
             _logFlushTimer = new DispatcherTimer(DispatcherPriority.Background)
             {
-                Interval = TimeSpan.FromMilliseconds(200)
+                Interval = TimeSpan.FromMilliseconds(100)
             };
             _logFlushTimer.Tick += (s, e) => FlushLogQueues();
             _logFlushTimer.Start();
+
+            // Initialize smooth scroll animation timer
+            _smoothScrollTimer = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(16) // ~60 FPS
+            };
+            _smoothScrollTimer.Tick += (s, e) => UpdateSmoothScroll();
+            _smoothScrollTimer.Start();
+
+            // Optimize RichTextBox rendering
+            if (OutputBox != null)
+            {
+                OutputBox.IsEnabled = true;
+            }
 
             // register keyboard shortcuts
             this.InputBindings.Add(new KeyBinding(new RelayCommand(_ => Merge_Click(null, null)), Key.M, ModifierKeys.Control));
@@ -173,7 +197,7 @@ namespace MergePilot
                     {
                         Content = repo.Name ?? repo.Path,
                         Tag = repo.Path,
-                        Foreground = BrushFromHex("#CBD5E1"),
+                        Style = (System.Windows.Style)this.Resources["DynamicRepoCheckBoxStyle"],
                         Margin = new System.Windows.Thickness(0, 0, 15, 0)
                     };
                     cb.Checked += CheckBox_Changed;
@@ -414,7 +438,7 @@ namespace MergePilot
             var targets = GetSelectedBranchesFromComboBox(TargetBranchBox);
             var repoPaths = GetSelectedRepositories();
 
-            AppendOutput("Merging started...");
+            AppendOutput(LogFormatter.FormatOperationStart("MERGE OPERATION"),true);
 
             try
             {
@@ -437,7 +461,7 @@ namespace MergePilot
 
                 foreach (var repo in repoPaths)
                 {
-                    AppendOutput($"================ Project: {repo} ================");
+                    AppendOutput(LogFormatter.FormatProjectHeader(System.IO.Path.GetFileName(repo), repo), true);
                     if (!System.IO.Directory.Exists(repo) || !System.IO.Directory.Exists(System.IO.Path.Combine(repo, ".git")))
                     {
                         AppendError($"❌ Repository path not found or not a git repo: {repo}");
@@ -445,12 +469,16 @@ namespace MergePilot
                         continue;
                     }
 
+                    var repoSuccessList = new List<string>();
+                    var repoSkipList = new List<string>();
+                    var repoFailList = new List<string>();
+
                     // Merge each source into each target
                     foreach (var source in sources)
                     {
                         foreach (var targetBranch in targets)
                         {
-                            AppendOutput($"🔁 {repo} → Merging {source} into {targetBranch}");
+                            AppendOutput(LogFormatter.FormatBranchOperationHeader(source, targetBranch), true);
 
                             try
                             {
@@ -464,6 +492,7 @@ namespace MergePilot
                                     {
                                         Dispatcher.Invoke(() => AppendOutput($"⏭ Skipped: target branch not found on remote"));
                                         failList.Add($"{repo} | {targetBranch} | target-not-found");
+                                        repoFailList.Add($"{source}→{targetBranch}");
                                         continue;
                                     }
                                 }
@@ -479,6 +508,7 @@ namespace MergePilot
                                         {
                                             AppendOutput($"✔ {result.Message}");
                                             successList.Add($"{repo} | {source}→{targetBranch}");
+                                            repoSuccessList.Add($"{source}→{targetBranch}");
                                         });
                                         break;
 
@@ -487,6 +517,7 @@ namespace MergePilot
                                         {
                                             AppendOutput($"⏭ {result.Message}");
                                             skipList.Add($"{repo} | {source}→{targetBranch}");
+                                            repoSkipList.Add($"{source}→{targetBranch}");
                                         });
                                         break;
 
@@ -532,6 +563,7 @@ namespace MergePilot
                                                 {
                                                     AppendError($"❌ Merge aborted: {abortResult.StdErr}");
                                                     failList.Add($"{repo} | {targetBranch} | aborted by user");
+                                                    repoFailList.Add($"{source}→{targetBranch}");
                                                 });
 
                                                 // skip further processing of this target branch
@@ -546,6 +578,7 @@ namespace MergePilot
                                                 {
                                                     AppendError($"❌ 'git add' failed: {add.StdErr}");
                                                     failList.Add($"{repo} | {targetBranch} | add failed");
+                                                    repoFailList.Add($"{source}→{targetBranch}");
                                                 });
                                                 continue;
                                             }
@@ -567,6 +600,7 @@ namespace MergePilot
                                                 {
                                                     AppendError($"❌ Push failed after manual resolution: {push.StdErr}");
                                                     failList.Add($"{repo} | {targetBranch} | push failed after resolution");
+                                                    repoFailList.Add($"{source}→{targetBranch}");
                                                 });
                                             }
                                             else
@@ -575,6 +609,7 @@ namespace MergePilot
                                                 {
                                                     AppendOutput($"✔ Manual resolution pushed: {targetBranch}");
                                                     successList.Add($"{repo} | {source}→{targetBranch}");
+                                                    repoSuccessList.Add($"{source}→{targetBranch}");
                                                 });
                                             }
                                         }
@@ -586,6 +621,7 @@ namespace MergePilot
                                             {
                                                 AppendError($"❌ Merge aborted for {targetBranch}: {abort.StdErr}");
                                                 failList.Add($"{repo} | {targetBranch} | merge conflict (aborted)");
+                                                repoFailList.Add($"{source}→{targetBranch}");
                                             });
                                         }
                                         break;
@@ -595,6 +631,7 @@ namespace MergePilot
                                         {
                                             AppendError($"❌ {result.Message}");
                                             failList.Add($"{repo} | {source}→{targetBranch} | failed");
+                                            repoFailList.Add($"{source}→{targetBranch}");
                                         });
                                         break;
                                 }
@@ -606,12 +643,14 @@ namespace MergePilot
                                 {
                                     AppendError($"❌ Exception for {targetBranch}: {ex.Message}");
                                     failList.Add($"{repo} | {targetBranch} | exception");
+                                    repoFailList.Add($"{source}→{targetBranch}");
                                 });
                             }
                         } // target branches
                     } // source branches
 
-                    AppendOutput($"✅ Completed: {repo}");
+                    // Project-level summary
+                    AppendOutput(LogFormatter.FormatProjectSummary(System.IO.Path.GetFileName(repo), repoSuccessList, repoSkipList, repoFailList), true);
                 } // repo
             }
             finally
@@ -622,8 +661,8 @@ namespace MergePilot
                     btnMerge.IsEnabled = true;
                 });
                 // Final summary (log to single log window)
-                GenerateAndLogSummary("Merge Summary", successList, skipList, failList);
-                AppendOutput("\nMerging finished.");
+                AppendOutput(LogFormatter.FormatFinalSummary("MERGE OPERATION", successList, skipList, failList), true);
+                AppendOutput("🎉 Merging finished.");
             }
         }
 
@@ -711,13 +750,14 @@ namespace MergePilot
         /// </summary>
         private void ValidateSelections()
         {
-            bool hasSourceBranches = _checkedSourceBranches.Count > 0;
+            bool hasExactlyOneSourceBranch = _checkedSourceBranches.Count == 1;
             bool hasTargetBranches = _checkedTargetBranches.Count > 0;
+            bool hasSourceBranches = _checkedSourceBranches.Count > 0;
 
-            // Merge button: needs both source and target branches selected
-            btnMerge.IsEnabled = hasSourceBranches && hasTargetBranches;
+            // Merge button: needs EXACTLY 1 source branch and at least 1 target branch
+            btnMerge.IsEnabled = hasExactlyOneSourceBranch && hasTargetBranches;
 
-            // Pull button: needs source branches selected
+            // Pull button: needs at least 1 source branch selected
             btnPullBranches.IsEnabled = hasSourceBranches;
         }
 
@@ -1187,7 +1227,7 @@ namespace MergePilot
                 var repoPaths = GetSelectedRepositories();
                 var sourceBranches = GetSelectedBranchesFromComboBox(SourceBranchBox);
 
-                AppendOutput("Starting pull of selected branches from origin...");
+                AppendOutput(LogFormatter.FormatOperationStart("PULL / FETCH OPERATION"), true);
 
                 if (sourceBranches.Count == 0)
                 {
@@ -1197,7 +1237,7 @@ namespace MergePilot
 
                 foreach (var repo in repoPaths)
                 {
-                    AppendOutput($"================ Project: {repo} ================");
+                    AppendOutput(LogFormatter.FormatProjectHeader(System.IO.Path.GetFileName(repo), repo), true);
                     if (!System.IO.Directory.Exists(repo) || !System.IO.Directory.Exists(System.IO.Path.Combine(repo, ".git")))
                     {
                         AppendError($"❌ Repository path not found or not a git repo: {repo}");
@@ -1205,9 +1245,12 @@ namespace MergePilot
                         continue;
                     }
 
+                    var repoSuccessList = new List<string>();
+                    var repoSkipList = new List<string>();
+                    var repoFailList = new List<string>();
+
                     foreach (var branch in sourceBranches)
                     {
-                        AppendOutput($"🔄 {repo} → {branch}");
                         try
                         {
                             var result = await GitHelper.EnsureBranchLatestAsync(repo, branch, cts.Token);
@@ -1218,11 +1261,13 @@ namespace MergePilot
                                 {
                                     AppendOutput($"⏭ {result.Message}");
                                     skipList.Add($"{repo} | {branch}");
+                                    repoSkipList.Add(branch);
                                 }
                                 else
                                 {
                                     AppendOutput($"✔ {result.Message}");
                                     successList.Add($"{repo} | {branch}");
+                                    repoSuccessList.Add(branch);
                                     AddBranchToRecentAndUi(branch);
                                 }
                             }
@@ -1230,22 +1275,24 @@ namespace MergePilot
                             {
                                 AppendError($"❌ {result.Message}");
                                 failList.Add($"{repo} | {branch} | {result.Message}");
+                                repoFailList.Add(branch);
                             }
                         }
                         catch (Exception ex)
                         {
                             AppendError($"❌ Exception while updating '{branch}': {ex.Message}");
                             failList.Add($"{repo} | {branch} | exception");
+                            repoFailList.Add(branch);
                         }
                     }
 
-                    AppendOutput($"✅ Completed updates for: {repo}");
+                    // Project-level summary
+                    AppendOutput(LogFormatter.FormatProjectSummary(System.IO.Path.GetFileName(repo), repoSuccessList, repoSkipList, repoFailList),true);
                 }
 
-                AppendOutput("Branch pull run finished.");
-
                 // Final summary for pull operation
-                GenerateAndLogSummary("Pull Branches Summary", successList, skipList, failList);
+                AppendOutput(LogFormatter.FormatFinalSummary("PULL / FETCH OPERATION", successList, skipList, failList),true);
+                AppendOutput("🎉 Pull operation finished.\n");
             }
             finally
             {
@@ -1527,10 +1574,14 @@ namespace MergePilot
             // Filter functionality removed - single log output
         }
 
-        private void AppendOutput(string text)
+        private void AppendOutput(string text, bool status = false)
         {
             var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-            var line = $"[{timestamp}] {text}\n";
+            var line = "";
+            if (status)
+                line = $"{text}";
+            else
+                line = $"[{timestamp}] {text}";
             _outputQueue.Enqueue(line);
             _outputMaster.Append(line);
         }
@@ -1538,7 +1589,7 @@ namespace MergePilot
         private void AppendError(string text)
         {
             var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-            var line = $"[{timestamp}] {text}\n";
+            var line = $"[{timestamp}] {text}";
             _errorQueue.Enqueue(line);
             _errorMaster.Append(line);
         }
@@ -1547,66 +1598,53 @@ namespace MergePilot
         {
             try
             {
-                // Flush output queue into inline OutputBox
-                if (_outputQueue.Count > 0)
+                // Batch both queues together for more efficient rendering
+                var hasOutput = _outputQueue.Count > 0;
+                var hasError = _errorQueue.Count > 0;
+                
+                if (!hasOutput && !hasError) return;
+
+                var combinedSb = new StringBuilder();
+
+                // Flush output queue
+                if (hasOutput)
                 {
-                    var sb = new StringBuilder();
                     while (_outputQueue.TryDequeue(out var item))
-                        sb.Append(item);
-
-                    if (sb.Length > 0)
-                    {
-                        var text = sb.ToString();
-                        try
-                        {
-                            if (OutputBox != null)
-                            {
-                                // update RichTextBox without destroying master
-                                AppendToRichTextBox(OutputBox, text, OutputBox.Foreground);
-                                // trim master
-                                var max = _settings?.LogMaxChars > 0 ? _settings.LogMaxChars : MaxLogChars;
-                                if (_outputMaster.Length > max)
-                                    _outputMaster.Remove(0, _outputMaster.Length - max);
-                            }
-
-                            if (_streamLogsToFile && _logFileWriter != null)
-                            {
-                                _logFileWriter.Write(text);
-                                _logFileWriter.Flush();
-                            }
-                        }
-                        catch { }
-                    }
+                        combinedSb.Append(item);
                 }
 
-                // Error queue also goes to OutputBox (single log)
-                if (_errorQueue.Count > 0)
+                // Flush error queue
+                if (hasError)
                 {
-                    var sb2 = new StringBuilder();
                     while (_errorQueue.TryDequeue(out var item))
-                        sb2.Append(item);
+                        combinedSb.Append(item);
+                }
 
-                    if (sb2.Length > 0)
+                if (combinedSb.Length > 0)
+                {
+                    var text = combinedSb.ToString();
+                    try
                     {
-                        var text2 = sb2.ToString();
-                        try
+                        if (OutputBox != null)
                         {
-                            if (OutputBox != null)
-                            {
-                                AppendToRichTextBox(OutputBox, text2, OutputBox.Foreground);
-                                var max = _settings?.LogMaxChars > 0 ? _settings.LogMaxChars : MaxLogChars;
-                                if (_errorMaster.Length > max)
-                                    _errorMaster.Remove(0, _errorMaster.Length - max);
-                            }
-
-                            if (_streamLogsToFile && _logFileWriter != null)
-                            {
-                                _logFileWriter.Write(text2);
-                                _logFileWriter.Flush();
-                            }
+                            // Batch update: single call to append both queues
+                            AppendToRichTextBox(OutputBox, text, OutputBox.Foreground);
+                            
+                            // Trim master buffers
+                            var max = _settings?.LogMaxChars > 0 ? _settings.LogMaxChars : MaxLogChars;
+                            if (_outputMaster.Length > max)
+                                _outputMaster.Remove(0, _outputMaster.Length - max);
+                            if (_errorMaster.Length > max)
+                                _errorMaster.Remove(0, _errorMaster.Length - max);
                         }
-                        catch { }
+
+                        if (_streamLogsToFile && _logFileWriter != null)
+                        {
+                            _logFileWriter.Write(text);
+                            _logFileWriter.Flush();
+                        }
                     }
+                    catch { }
                 }
             }
             catch
@@ -1703,10 +1741,13 @@ namespace MergePilot
                 if (dlg.ShowDialog(this) == true)
                 {
                     var combined = new StringBuilder();
-                    combined.AppendLine("--- OUTPUT ---");
+                    combined.Append(SectionSeparator + "\n");
+                    combined.Append("--- OUTPUT ---\n");
+                    combined.Append(SectionSeparator + "\n");
                     combined.Append(_outputMaster.ToString());
-                    combined.AppendLine();
-                    combined.AppendLine("--- ERRORS ---");
+                    combined.Append(SectionSeparator + "\n");
+                    combined.Append("--- ERRORS ---\n");
+                    combined.Append(SectionSeparator + "\n");
                     combined.Append(_errorMaster.ToString());
                     System.IO.File.WriteAllText(dlg.FileName, combined.ToString());
                 }
@@ -1722,10 +1763,13 @@ namespace MergePilot
             try
             {
                 var combined = new StringBuilder();
-                combined.AppendLine("--- OUTPUT ---");
+                combined.Append(SectionSeparator + "\n");
+                combined.Append("--- OUTPUT ---\n");
+                combined.Append(SectionSeparator + "\n");
                 combined.Append(_outputMaster.ToString());
-                combined.AppendLine();
-                combined.AppendLine("--- ERRORS ---");
+                combined.Append(SectionSeparator + "\n");
+                combined.Append("--- ERRORS ---\n");
+                combined.Append(SectionSeparator + "\n");
                 combined.Append(_errorMaster.ToString());
                 System.Windows.Clipboard.SetText(combined.ToString());
             }
@@ -1744,41 +1788,33 @@ namespace MergePilot
             catch { }
         }
 
-        private void sldFlushInterval_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            // Flush interval control removed
-        }
 
         // Old detached LogWindow removed; inline logs used instead
 
         private void GenerateAndLogSummary(string title, List<string> success, List<string> skipped, List<string> failed)
         {
             var sb = new StringBuilder();
-            sb.AppendLine();
-            sb.AppendLine($"=== {title} ===");
-            sb.AppendLine($"Timestamp: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-            sb.AppendLine($"✅ SUCCESSFUL ({success.Count}):");
+            sb.Append(SectionSeparator + "\n");
+            sb.Append($"========== {title} ==========\n");
+            sb.Append(SectionSeparator + "\n");
+            sb.Append($"Timestamp: {DateTime.Now:yyyy-MM-dd HH:mm:ss}\n");
+            sb.Append($"✅ SUCCESSFUL ({success.Count}):\n");
             if (success.Count > 0)
             {
-                foreach (var s in success) sb.AppendLine($"  ✔ {s}");
+                foreach (var s in success) sb.Append($" ✔ {s}\n");
             }
-            else sb.AppendLine("  None");
 
-            sb.AppendLine();
-            sb.AppendLine($"⏭ SKIPPED ({skipped.Count}):");
+            sb.Append($"⏭ SKIPPED ({skipped.Count}):\n");
             if (skipped.Count > 0)
             {
-                foreach (var s in skipped) sb.AppendLine($"  ⏭ {s}");
+                foreach (var s in skipped) sb.Append($" ⏭ {s}\n");
             }
-            else sb.AppendLine("  None");
 
-            sb.AppendLine();
-            sb.AppendLine($"❌ FAILED ({failed.Count}):");
+            sb.Append($"❌ FAILED ({failed.Count}):\n");
             if (failed.Count > 0)
             {
-                foreach (var f in failed) sb.AppendLine($"  ❌ {f}");
+                foreach (var f in failed) sb.Append($" ❌ {f}\n");
             }
-            else sb.AppendLine("  None");
 
             var summary = sb.ToString();
             AppendOutput(summary);
@@ -1815,18 +1851,145 @@ namespace MergePilot
         {
             try
             {
-                var tr = new System.Windows.Documents.TextRange(box.Document.ContentEnd, box.Document.ContentEnd)
+                if (box?.Document == null) return;
+
+                // Use batch mode for better rendering performance
+                box.BeginChange();
+                
+                // Split text into lines and apply appropriate colors based on content
+                var lines = text.Split(new[] { "\n" }, StringSplitOptions.None);
+                
+                int linesAdded = 0;
+                foreach (var line in lines)
                 {
-                    Text = text
-                };
-                if (foreground != null)
-                {
-                    tr.ApplyPropertyValue(System.Windows.Documents.TextElement.ForegroundProperty, foreground);
+                    if (string.IsNullOrEmpty(line)) continue;
+
+                    // Determine color based on line content
+                    System.Windows.Media.Brush lineColor = foreground ?? System.Windows.Media.Brushes.White;
+
+                    // Success patterns (GREEN)
+                    if (line.Contains("✅") || line.Contains("✔") || line.Contains("SUCCESSFUL") || 
+                        line.Contains("Updated") || line.Contains("created") || line.Contains("Successfully"))
+                    {
+                        lineColor = ColorScheme.SuccessBrush;
+                    }
+                    // Warning/Skipped patterns (YELLOW)
+                    else if (line.Contains("⏭") || line.Contains("SKIPPED") || line.Contains("skipped") || 
+                             line.Contains("already up-to-date") || line.Contains("⚠") || line.Contains("Warning"))
+                    {
+                        lineColor = ColorScheme.WarningBrush;
+                    }
+                    // Error/Failed patterns (RED)
+                    else if (line.Contains("❌") || line.Contains("FAILED") || line.Contains("failed") || 
+                             line.Contains("Error") || line.Contains("error") || line.Contains("Exception"))
+                    {
+                        lineColor = ColorScheme.ErrorBrush;
+                    }
+                    // Info patterns (BLUE)
+                    else if (line.Contains("🚀") || line.Contains("📁") || line.Contains("🔀") || 
+                             line.Contains("📥") || line.Contains("Processing") || line.Contains("Attempt") ||
+                             line.Contains("Timestamp") || line.Contains("Path:") || line.Contains("🔄"))
+                    {
+                        lineColor = ColorScheme.InfoBrush;
+                    }
+
+                    // Create paragraph once and append
+                    var para = new System.Windows.Documents.Paragraph();
+                    para.Margin = new System.Windows.Thickness(0);
+                    para.Padding = new System.Windows.Thickness(0);
+                    para.LineHeight = 1.0;
+
+                    var run = new System.Windows.Documents.Run(line);
+                    run.Foreground = lineColor;
+                    para.Inlines.Add(run);
+                    
+                    box.Document.Blocks.Add(para);
+                    linesAdded++;
+                    _displayedLineCount++;
                 }
-                // Optionally scroll to end
-                box.ScrollToEnd();
+
+                box.EndChange();
+
+                // Trigger smooth scroll to end
+                _targetScrollOffset = double.MaxValue;
+                
+                // Periodically cull old lines to maintain performance (keep recent logs)
+                if (_displayedLineCount > MaxDisplayedLines)
+                {
+                    CullOldLogLines(box);
+                }
             }
             catch { }
+        }
+
+        private void CullOldLogLines(System.Windows.Controls.RichTextBox box)
+        {
+            try
+            {
+                var linesToRemove = _displayedLineCount - (MaxDisplayedLines - 100);
+                if (linesToRemove <= 0) return;
+
+                box.BeginChange();
+                for (int i = 0; i < linesToRemove && box.Document.Blocks.Count > 0; i++)
+                {
+                    var firstBlock = box.Document.Blocks.FirstBlock;
+                    if (firstBlock != null)
+                        box.Document.Blocks.Remove(firstBlock);
+                }
+                box.EndChange();
+
+                _displayedLineCount = box.Document.Blocks.Count;
+            }
+            catch { }
+        }
+
+        private void UpdateSmoothScroll()
+        {
+            try
+            {
+                if (OutputBox?.Document == null) return;
+                var scrollViewer = FindScrollViewer(OutputBox);
+                if (scrollViewer == null) return;
+
+                var scrollableHeight = scrollViewer.ScrollableHeight;
+                if (scrollableHeight <= 0) return;
+
+                var currentOffset = scrollViewer.VerticalOffset;
+                
+                if (_targetScrollOffset == double.MaxValue)
+                {
+                    _targetScrollOffset = scrollableHeight;
+                }
+
+                // Smooth & slow scroll with easing animation
+                var diff = _targetScrollOffset - currentOffset;
+                
+                if (Math.Abs(diff) > 0.5)
+                {
+                    // Very smooth easing: only move 6% of remaining distance per frame
+                    // This creates a slow, buttery smooth scroll effect
+                    var easeAmount = diff * 0.06; // Slow easing multiplier
+                    scrollViewer.ScrollToVerticalOffset(currentOffset + easeAmount);
+                }
+                else if (Math.Abs(diff) > 0)
+                {
+                    // Final snap to target when very close
+                    scrollViewer.ScrollToEnd();
+                }
+            }
+            catch { }
+        }
+
+        private System.Windows.Controls.ScrollViewer? FindScrollViewer(System.Windows.DependencyObject obj)
+        {
+            for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(obj); i++)
+            {
+                var child = System.Windows.Media.VisualTreeHelper.GetChild(obj, i);
+                if (child is System.Windows.Controls.ScrollViewer sv) return sv;
+                var found = FindScrollViewer(child);
+                if (found != null) return found;
+            }
+            return null;
         }
     }
 }
