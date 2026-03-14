@@ -1,21 +1,25 @@
-.vs/MergePilot/CopilotIndices/18.0.988.22099/CodeChunks.db
-.vs/MergePilot/CopilotIndices/18.0.988.22099/CodeChunks.db-shm
-.vs/MergePilot/CopilotIndices/18.0.988.22099/CodeChunks.db-wal
-.vs/MergePilot/CopilotIndices/18.0.988.22099/SemanticSymbols.db
-.vs/MergePilot/CopilotIndices/18.0.988.22099/SemanticSymbols.db-shm
-.vs/MergePilot/CopilotIndices/18.0.988.22099/SemanticSymbols.db-wal
-.vs/MergePilot/FileContentIndex/88b6dec1-0b78-4f2b-b3c1-da5b464ca469.vsidx
-.vs/MergePilot/v18/.suo
-.vs/MergePilot/v18/DocumentLayout.json
-MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot.csproj.Up2Date
-MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot.sourcelink.json
-MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot_5p3iirqr_wpftmp.AssemblyInfo.cs
-MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot_5p3iirqr_wpftmp.AssemblyInfoInputs.cache
-MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot_5p3iirqr_wpftmp.assets.cache
-MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot_5p3iirqr_wpftmp.csproj.BuildWithSkipAnalyzers
-MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot_5p3iirqr_wpftmp.GeneratedMSBuildEditorConfig.editorconfig
-MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot_5p3iirqr_wpftmp.GlobalUsings.g.cs
-MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot_5p3iirqr_wpftmp.sourcelink.json
-MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot_MarkupCompile.i.lref
+# Visual Studio
+.vs/
+*.suo
+*.user
+
+# Build output
+bin/
+obj/
+
+# IDE
 *.vsidx
-/MergePilot/bin/Release/net8.0-windows10.0.26100.0
+[Bb]in/
+[Oo]bj/
+.vs/
+bin/
+obj/
+*.user
+*.suo
+/MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot.AssemblyInfo.cs
+/MergePilot/obj/Debug/net8.0-windows10.0.26100.0/MergePilot.AssemblyInfoInputs.cache
+/MergePilot/obj/MergePilot.csproj.nuget.dgspec.json
+/MergePilot/obj/MergePilot.csproj.nuget.g.props
+/MergePilot/obj/MergePilot.csproj.nuget.g.targets
+/MergePilot/obj/project.assets.json
+/MergePilot/obj/project.nuget.cache
