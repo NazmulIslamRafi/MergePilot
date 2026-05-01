@@ -334,6 +334,39 @@ namespace MergePilot
         }
 
         /// <summary>
+        /// Get list of remote branches for a repository.
+        /// </summary>
+        public static async Task<List<string>> GetRemoteBranchesAsync(string repoPath, string remoteName = "origin", CancellationToken cancellationToken = default)
+        {
+            var branches = new List<string>();
+            try
+            {
+                var result = await RunGitCommandAsync(repoPath, $"ls-remote --heads {remoteName}", TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+                if (result.IsSuccess)
+                {
+                    foreach (var line in result.StdOut.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        // Format: <sha>\trefs/heads/<branch>
+                        var parts = line.Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length >= 2)
+                        {
+                            var refPart = parts[1];
+                            var prefix = "refs/heads/";
+                            if (refPart.StartsWith(prefix))
+                            {
+                                var branch = refPart.Substring(prefix.Length).Trim();
+                                if (!string.IsNullOrWhiteSpace(branch))
+                                    branches.Add(branch);
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+            return branches;
+        }
+
+        /// <summary>
         /// Checkout a specific branch.
         /// </summary>
         public static async Task<CommandResult> CheckoutBranchAsync(string repoPath, string branch, CancellationToken cancellationToken = default)

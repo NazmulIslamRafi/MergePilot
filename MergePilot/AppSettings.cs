@@ -14,6 +14,8 @@ namespace MergePilot
 
         // Dynamic repository list saved by the app
         public List<RepositoryEntry> Repositories { get; set; } = new();
+        // Custom branches (manually added or discovered)
+        public List<BranchEntry> CustomBranches { get; set; } = new();
         // Recently discovered or used branches (persisted across sessions)
         public List<string> RecentBranches { get; set; } = new();
         // Optionally persist last used source/target
@@ -40,6 +42,12 @@ namespace MergePilot
             public string? Path { get; set; }
             // Optional remote URL or metadata
             public string? RemoteUrl { get; set; }
+        }
+
+        public class BranchEntry
+        {
+            public string? BranchName { get; set; }
+            public string? Repository { get; set; }
         }
 
         private static string SettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MergePilot", "settings.json");

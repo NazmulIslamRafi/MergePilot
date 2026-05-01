@@ -210,7 +210,7 @@ Title="Merge Pilot"
                                        FontSize="13"
                                        FontWeight="SemiBold"
                                        FontFamily="Alkatra SemiBold"
-                                       Margin="0 0 0 5"/>
+                                       Margin="0,0,1000,5" Grid.ColumnSpan="2"/>
                                 
                                 <Button Grid.Column="2"
                                         Content="Add Repo" 

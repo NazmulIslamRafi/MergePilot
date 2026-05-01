@@ -217,11 +217,28 @@ namespace MergePilot
                 // Also load persisted recent branches into comboboxes
                 SourceBranchBox.Items.Clear();
                 TargetBranchBox.Items.Clear();
+
+                var addedBranches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                // Load custom branches from settings
+                if (_settings.CustomBranches != null)
+                {
+                    foreach (var branch in _settings.CustomBranches)
+                    {
+                        if (!string.IsNullOrWhiteSpace(branch.BranchName) && addedBranches.Add(branch.BranchName))
+                        {
+                            SourceBranchBox.Items.Add(branch.BranchName);
+                            TargetBranchBox.Items.Add(branch.BranchName);
+                        }
+                    }
+                }
+
+                // Load recent branches
                 if (_settings.RecentBranches != null)
                 {
-                    foreach (var b in _settings.RecentBranches.Distinct(StringComparer.OrdinalIgnoreCase))
+                    foreach (var b in _settings.RecentBranches)
                     {
-                        if (!string.IsNullOrWhiteSpace(b))
+                        if (!string.IsNullOrWhiteSpace(b) && addedBranches.Add(b))
                         {
                             SourceBranchBox.Items.Add(b);
                             TargetBranchBox.Items.Add(b);
@@ -260,29 +277,19 @@ namespace MergePilot
         {
             try
             {
-                // Toggle visibility of management panel
-                if (RepoManagePanel.Visibility == Visibility.Visible)
+                var dialog = new RepositoryManager();
+                dialog.LoadData(_settings);
+                dialog.Owner = this;
+                if (dialog.ShowDialog() == true)
                 {
-                    RepoManagePanel.Visibility = Visibility.Collapsed;
-                }
-                else
-                {
-                    RepoManagePanel.Visibility = Visibility.Visible;
-                    // populate list
-                    lstRepos.Items.Clear();
-                    foreach (var r in _settings.Repositories ?? new System.Collections.Generic.List<AppSettings.RepositoryEntry>())
-                    {
-                        try
-                        {
-                            lstRepos.Items.Add(r);
-                        }
-                        catch { }
-                    }
+                    // Reload repositories and branches from updated settings
+                    _settings = AppSettings.Load();
+                    PopulateRepositoriesFromSettings();
                 }
             }
             catch (Exception ex)
             {
-                AppendError($"Failed to open repo manager: {ex.Message}");
+                AppendError($"Failed to open repository manager: {ex.Message}");
             }
         }
 
