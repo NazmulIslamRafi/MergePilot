@@ -411,6 +411,100 @@ namespace MergePilot
         }
 
         /// <summary>
+        /// Gets all branches (both local and remote) organized hierarchically as BranchItem objects.
+        /// </summary>
+        /// <param name="repoPath">The absolute path to the Git repository.</param>
+        /// <param name="cancellationToken">Cancellation token for operation cancellation.</param>
+        /// <returns>An enumerable of BranchItem representing the hierarchical branch structure.</returns>
+        /// <remarks>
+        /// This method combines local and remote branches into a single hierarchical structure.
+        /// Branches are organized by their prefix (e.g., "feature/", "bugfix/") with separators.
+        /// Groups are automatically created for common prefixes.
+        /// </remarks>
+        public static async Task<IEnumerable<BranchItem>> GetBranchesAsync(
+            string repoPath,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                // Fetch both local and remote branches concurrently
+                var localTask = GetLocalBranchesAsync(repoPath, cancellationToken);
+                var remoteTask = GetRemoteBranchesAsync(repoPath, "origin", cancellationToken);
+
+                await Task.WhenAll(localTask, remoteTask).ConfigureAwait(false);
+
+                var localBranches = await localTask.ConfigureAwait(false);
+                var remoteBranches = await remoteTask.ConfigureAwait(false);
+
+                // Combine and organize into hierarchy
+                var allBranches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                allBranches.UnionWith(localBranches);
+                allBranches.UnionWith(remoteBranches);
+
+                return OrganizeBranchesHierarchically(allBranches.OrderBy(b => b));
+            }
+            catch
+            {
+                return Enumerable.Empty<BranchItem>();
+            }
+        }
+
+        /// <summary>
+        /// Organizes a flat list of branch names into a hierarchical BranchItem structure.
+        /// </summary>
+        private static IEnumerable<BranchItem> OrganizeBranchesHierarchically(IEnumerable<string> branches)
+        {
+            var result = new List<BranchItem>();
+            var groupDict = new Dictionary<string, BranchItem>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var branch in branches)
+            {
+                var parts = branch.Split('/');
+
+                if (parts.Length == 1)
+                {
+                    // Simple branch without prefix
+                    result.Add(new BranchItem(branch, branch, isGroup: false, level: 0));
+                }
+                else
+                {
+                    // Create group hierarchy
+                    var groupPath = "";
+                    BranchItem currentParent = null;
+                    int level = 0;
+
+                    for (int i = 0; i < parts.Length - 1; i++)
+                    {
+                        groupPath = i == 0 ? parts[i] : $"{groupPath}/{parts[i]}";
+
+                        if (!groupDict.TryGetValue(groupPath, out var group))
+                        {
+                            group = new BranchItem(parts[i], groupPath, isGroup: true, level: level, parent: currentParent);
+                            groupDict[groupPath] = group;
+
+                            if (currentParent == null)
+                                result.Add(group);
+                            else
+                                currentParent.Children.Add(group);
+                        }
+
+                        currentParent = group;
+                        level++;
+                    }
+
+                    // Add the actual branch to its parent group
+                    if (currentParent != null)
+                    {
+                        var leafBranch = new BranchItem(parts[parts.Length - 1], branch, isGroup: false, level: level, parent: currentParent);
+                        currentParent.Children.Add(leafBranch);
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// Pull a branch from origin with --no-edit.
         /// </summary>
         public static async Task<CommandResult> PullBranchAsync(string repoPath, string branch, CancellationToken cancellationToken = default)
