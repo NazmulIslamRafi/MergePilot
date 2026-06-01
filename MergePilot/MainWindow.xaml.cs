@@ -220,6 +220,10 @@ namespace MergePilot
 
                 var addedBranches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+                // Clear the internal tracking collections
+                _allSourceBranches.Clear();
+                _allTargetBranches.Clear();
+
                 // Load custom branches from settings
                 if (_settings.CustomBranches != null)
                 {
@@ -229,6 +233,9 @@ namespace MergePilot
                         {
                             SourceBranchBox.Items.Add(branch.BranchName);
                             TargetBranchBox.Items.Add(branch.BranchName);
+                            // Also add to internal tracking collections
+                            _allSourceBranches.Add(branch.BranchName);
+                            _allTargetBranches.Add(branch.BranchName);
                         }
                     }
                 }
@@ -242,10 +249,13 @@ namespace MergePilot
                         {
                             SourceBranchBox.Items.Add(b);
                             TargetBranchBox.Items.Add(b);
+                            // Also add to internal tracking collections
+                            _allSourceBranches.Add(b);
+                            _allTargetBranches.Add(b);
                         }
                     }
                 }
-                
+
                 // Ensure ListBox items are selectable visually (use default selection brush)
                 try
                 {
@@ -677,15 +687,26 @@ namespace MergePilot
         {
             ValidateSelections();
 
-            // If a repository checkbox was checked, attempt to load remote branches for quick selection
             try
             {
-                if (sender is CheckBox cb && cb.IsChecked == true && cb.Tag is string repoPath && !string.IsNullOrWhiteSpace(repoPath))
+                if (sender is CheckBox cb && cb.Tag is string repoPath && !string.IsNullOrWhiteSpace(repoPath))
                 {
-                    // fire-and-forget async load (updates UI via Dispatcher)
-                    _ = LoadBranchesForRepoAsync(repoPath);
-                    // also attempt to validate current TargetBranchBox for this repo's remote
-                    _ = ValidateTargetForRepoAsync(repoPath, TargetBranchBox.Text.Trim());
+                    if (cb.IsChecked == true)
+                    {
+                        // Load custom branches for this repo from local settings
+                        _ = LoadBranchesForRepoAsync(repoPath);
+                    }
+                    else
+                    {
+                        // When unchecked, clear all branches
+                        _allSourceBranches.Clear();
+                        _allTargetBranches.Clear();
+
+                        Dispatcher.Invoke(() =>
+                        {
+                            RefreshBranchLists();
+                        });
+                    }
                 }
             }
             catch { }
@@ -1117,42 +1138,37 @@ namespace MergePilot
         {
             try
             {
-                // Ensure repo path exists and contains git
-                if (!Directory.Exists(repoPath) || !Directory.Exists(Path.Combine(repoPath, ".git")))
-                    return;
+                var branchesToAdd = new List<string>();
 
-                // Use ls-remote to list remote heads
-                var res = await GitHelper.RetryRunGitCommandAsync(repoPath, "ls-remote --heads origin", 3, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(30));
-                if (!res.IsSuccess)
+                // Load ONLY custom branches for this repository from local settings
+                var repoName = _settings.Repositories?.FirstOrDefault(r => string.Equals(r.Path, repoPath, StringComparison.OrdinalIgnoreCase))?.Name;
+                if (!string.IsNullOrWhiteSpace(repoName) && _settings.CustomBranches != null)
                 {
-                    // fallback: try listing local branches
-                    var localRes = await GitHelper.RetryRunGitCommandAsync(repoPath, "for-each-ref --format='%(refname:short)' refs/heads/", 3, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(10));
-                    if (!localRes.IsSuccess) return;
-                    var locals = localRes.StdOut.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).Where(s => !string.IsNullOrWhiteSpace(s)).ToList();
-                    foreach (var b in locals)
+                    foreach (var customBranch in _settings.CustomBranches)
                     {
-                        AddBranchToRecentAndUi(b);
-                    }
-                    return;
-                }
-
-                var lines = res.StdOut.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                foreach (var line in lines)
-                {
-                    // format: <sha>\trefs/heads/<branch>
-                    var parts = line.Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length >= 2)
-                    {
-                        var refPart = parts[1];
-                        var prefix = "refs/heads/";
-                        if (refPart.StartsWith(prefix))
+                        if (!string.IsNullOrWhiteSpace(customBranch.BranchName) && 
+                            string.Equals(customBranch.Repository, repoName, StringComparison.OrdinalIgnoreCase))
                         {
-                            var branch = refPart.Substring(prefix.Length).Trim();
-                            if (!string.IsNullOrWhiteSpace(branch))
-                                AddBranchToRecentAndUi(branch);
+                            branchesToAdd.Add(customBranch.BranchName);
                         }
                     }
                 }
+
+                // Clear and add collected branches to the internal collections
+                _allSourceBranches.Clear();
+                _allTargetBranches.Clear();
+
+                foreach (var branch in branchesToAdd)
+                {
+                    _allSourceBranches.Add(branch);
+                    _allTargetBranches.Add(branch);
+                }
+
+                // Refresh UI with all branches
+                Dispatcher.Invoke(() =>
+                {
+                    RefreshBranchLists();
+                });
             }
             catch { }
         }
