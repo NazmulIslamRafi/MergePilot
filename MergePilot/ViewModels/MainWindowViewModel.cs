@@ -83,7 +83,13 @@ namespace MergePilot.ViewModels
         public AppSettings.RepositoryEntry? SelectedRepository
         {
             get => _selectedRepository;
-            set => SetProperty(ref _selectedRepository, value);
+            set
+            {
+                if (SetProperty(ref _selectedRepository, value))
+                {
+                    OnPropertyChanged(nameof(CanMerge));
+                }
+            }
         }
 
         /// <summary>
@@ -92,7 +98,13 @@ namespace MergePilot.ViewModels
         public BranchItem? SelectedSourceBranch
         {
             get => _selectedSourceBranch;
-            set => SetProperty(ref _selectedSourceBranch, value);
+            set
+            {
+                if (SetProperty(ref _selectedSourceBranch, value))
+                {
+                    OnPropertyChanged(nameof(CanMerge));
+                }
+            }
         }
 
         /// <summary>
@@ -101,7 +113,13 @@ namespace MergePilot.ViewModels
         public BranchItem? SelectedTargetBranch
         {
             get => _selectedTargetBranch;
-            set => SetProperty(ref _selectedTargetBranch, value);
+            set
+            {
+                if (SetProperty(ref _selectedTargetBranch, value))
+                {
+                    OnPropertyChanged(nameof(CanMerge));
+                }
+            }
         }
 
         /// <summary>
@@ -128,7 +146,13 @@ namespace MergePilot.ViewModels
         public bool IsOperationInProgress
         {
             get => _isOperationInProgress;
-            private set => SetProperty(ref _isOperationInProgress, value);
+            private set
+            {
+                if (SetProperty(ref _isOperationInProgress, value))
+                {
+                    OnPropertyChanged(nameof(CanMerge));
+                }
+            }
         }
 
         /// <summary>
@@ -165,6 +189,18 @@ namespace MergePilot.ViewModels
         {
             get => _inlineLogsVisible;
             set => SetProperty(ref _inlineLogsVisible, value);
+        }
+
+        /// <summary>
+        /// Gets a value indicating whether a merge operation can be performed.
+        /// </summary>
+        public bool CanMerge
+        {
+            get => SelectedRepository != null &&
+                   SelectedSourceBranch != null &&
+                   SelectedTargetBranch != null &&
+                   SelectedSourceBranch.FullName != SelectedTargetBranch.FullName &&
+                   !IsOperationInProgress;
         }
 
         #endregion
@@ -236,7 +272,7 @@ namespace MergePilot.ViewModels
 
             MergeCommand = new AsyncRelayCommand(
                 execute: _ => MergeBranchAsync(),
-                canExecute: _ => CanMerge()
+                canExecute: _ => CanMerge
             );
 
             PullBranchCommand = new AsyncRelayCommand(
@@ -256,6 +292,34 @@ namespace MergePilot.ViewModels
             ToggleLogsCommand = new RelayCommand(
                 execute: _ => InlineLogsVisible = !InlineLogsVisible
             );
+        }
+
+        /// <summary>
+        /// Loads and applies settings from AppSettings.
+        /// Called from MainWindow code-behind during initialization.
+        /// </summary>
+        public void LoadSettings()
+        {
+            _settings = AppSettings.Load();
+
+            // Update UI state from settings
+            DispatcherHelper.InvokeOnDispatcher(() =>
+            {
+                Repositories.Clear();
+                foreach (var repo in _settings.Repositories)
+                {
+                    Repositories.Add(repo);
+                }
+
+                AutoOpenLogs = _settings.AutoOpenLogs;
+                InlineLogsVisible = _settings.InlineLogsVisible;
+
+                // Select first repository if available
+                if (Repositories.Count > 0)
+                {
+                    SelectedRepository = Repositories[0];
+                }
+            });
         }
 
         /// <summary>
@@ -320,7 +384,7 @@ namespace MergePilot.ViewModels
         /// </summary>
         private async Task MergeBranchAsync()
         {
-            if (!CanMerge())
+            if (!CanMerge)
             {
                 StatusMessage = "Invalid merge configuration";
                 return;
@@ -445,18 +509,6 @@ namespace MergePilot.ViewModels
         {
             // This will be implemented when RepositoryManager UI is migrated to MVVM
             StatusMessage = "Repository manager will open here";
-        }
-
-        /// <summary>
-        /// Determines if a merge operation can be performed.
-        /// </summary>
-        private bool CanMerge()
-        {
-            return SelectedRepository != null &&
-                   SelectedSourceBranch != null &&
-                   SelectedTargetBranch != null &&
-                   SelectedSourceBranch.FullName != SelectedTargetBranch.FullName &&
-                   !IsOperationInProgress;
         }
 
         /// <summary>

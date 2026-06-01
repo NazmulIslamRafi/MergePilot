@@ -18,6 +18,7 @@ using System.Text.Json;
 using System.Windows.Forms; // used for FolderBrowserDialog
 using Microsoft.VisualBasic; // used for simple input dialogs
 using System.Windows.Input;
+using MergePilot.ViewModels;
 
 namespace MergePilot
 {
@@ -67,6 +68,10 @@ namespace MergePilot
         {
             InitializeComponent();
 
+            // The DataContext is set to MainWindowViewModel in XAML
+            // Store reference to ViewModel for logging integration
+            var viewModel = this.DataContext as MainWindowViewModel;
+
             // initial UI state and timers
             ValidateSelections();
             _logFlushTimer = new DispatcherTimer(DispatcherPriority.Background)
@@ -90,12 +95,15 @@ namespace MergePilot
                 OutputBox.IsEnabled = true;
             }
 
-            // register keyboard shortcuts
-            this.InputBindings.Add(new KeyBinding(new RelayCommand(_ => Merge_Click(null, null)), Key.M, ModifierKeys.Control));
-            this.InputBindings.Add(new KeyBinding(new RelayCommand(_ => PullSelectedBranches_Click(null, null)), Key.P, ModifierKeys.Control));
-            this.InputBindings.Add(new KeyBinding(new RelayCommand(_ => RefreshBranches_Click(null, null)), Key.R, ModifierKeys.Control));
-            this.InputBindings.Add(new KeyBinding(new RelayCommand(_ => ManageRepos_Click(null, null)), Key.B, ModifierKeys.Control));
-            this.InputBindings.Add(new KeyBinding(new RelayCommand(_ => ToggleLogs()), Key.L, ModifierKeys.Control));
+            // register keyboard shortcuts - now use ViewModel commands
+            if (viewModel != null)
+            {
+                this.InputBindings.Add(new KeyBinding(viewModel.MergeCommand, Key.M, ModifierKeys.Control));
+                this.InputBindings.Add(new KeyBinding(viewModel.PullBranchCommand, Key.P, ModifierKeys.Control));
+                this.InputBindings.Add(new KeyBinding(viewModel.RefreshBranchesCommand, Key.R, ModifierKeys.Control));
+                this.InputBindings.Add(new KeyBinding(viewModel.ManageRepositoriesCommand, Key.B, ModifierKeys.Control));
+                this.InputBindings.Add(new KeyBinding(viewModel.ToggleLogsCommand, Key.L, ModifierKeys.Control));
+            }
             this.PreviewKeyDown += MainWindow_PreviewKeyDown;
 
             // register log shortcuts (save/copy/clear)
@@ -105,8 +113,11 @@ namespace MergePilot
             _settings = AppSettings.Load();
             _autoOpenLogs = _settings.AutoOpenLogs;
 
-            // populate dynamic repositories from settings
-            PopulateRepositoriesFromSettings();
+            // Initialize ViewModel with settings
+            if (viewModel != null)
+            {
+                viewModel.LoadSettings();
+            }
 
             // hook branch combobox dropdown events
             SourceBranchBox.DropDownOpened += BranchComboBox_DropDownOpened;

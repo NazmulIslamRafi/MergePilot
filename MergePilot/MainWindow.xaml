@@ -5,6 +5,7 @@ xmlns:Controls="http://metro.mahapps.com/winfx/xaml/controls"
 xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
 xmlns:Ease="clr-namespace:System.Windows.Media.Animation;assembly=PresentationCore"
 xmlns:local="clr-namespace:MergePilot"
+xmlns:vm="clr-namespace:MergePilot.ViewModels"
 Title="Merge Pilot"
                       TitleAlignment="Center"
                       TitleCharacterCasing="Normal"
@@ -16,6 +17,11 @@ Title="Merge Pilot"
                       BorderThickness="1"
                       WindowTransitionsEnabled="True"
                       Closing="MetroWindow_Closing">
+
+    <!-- Initialize DataContext with MainWindowViewModel -->
+    <Controls:MetroWindow.DataContext>
+        <vm:MainWindowViewModel />
+    </Controls:MetroWindow.DataContext>
 
     <Controls:MetroWindow.TitleTemplate>
         <DataTemplate>
@@ -214,7 +220,7 @@ Title="Merge Pilot"
                                 
                                 <Button Grid.Column="2"
                                         Content="Add Repo" 
-                                        Click="ManageRepos_Click"
+                                        Command="{Binding ManageRepositoriesCommand}"
                                         HorizontalAlignment="Right"
                                         Style="{StaticResource MaterialDesignRaisedButton}"
                                         Background="{StaticResource NormalGradientBrush}"
@@ -351,6 +357,7 @@ Title="Merge Pilot"
                                   HorizontalAlignment="Stretch"
                                   StaysOpenOnEdit="True"
                                   IsEditable="False"
+                                  ItemsSource="{Binding SourceBranches}"
                                   materialDesign:HintAssist.Hint="Select source branches (check items)"
                                   ItemTemplate="{StaticResource HierarchicalBranchTemplate}" />
 
@@ -367,6 +374,7 @@ Title="Merge Pilot"
                                   HorizontalAlignment="Stretch"
                                   StaysOpenOnEdit="True"
                                   IsEditable="False"
+                                  ItemsSource="{Binding TargetBranches}"
                                   materialDesign:HintAssist.Hint="Select target branches (check items)"
                                   ItemTemplate="{StaticResource HierarchicalBranchTemplate}" />
 
@@ -384,7 +392,8 @@ Title="Merge Pilot"
                             <Button x:Name="btnMerge"
                                     Grid.Column="11"
                                     Content="Merge"
-                                    IsEnabled="False"
+                                    Command="{Binding MergeCommand}"
+                                    IsEnabled="{Binding CanMerge}"
                                     Style="{StaticResource MaterialDesignRaisedButton}"
                                     Background="{StaticResource NormalGradientBrush}"
                                     Foreground="White"
@@ -394,7 +403,6 @@ Title="Merge Pilot"
                                     Width="100"
                                     Height="25"
                                     Padding="3 3"
-                                    Click="Merge_Click"
                                     materialDesign:ButtonProgressAssist.IsIndeterminate="False">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
@@ -449,8 +457,8 @@ Title="Merge Pilot"
                             <Button x:Name="btnPullBranches"
                                     Grid.Column="13"
                                     Content="Pull"
+                                    Command="{Binding PullBranchCommand}"
                                     ToolTip="Fetch latest branches from origin for selected repositories"
-                                    Click="PullSelectedBranches_Click"
                                     Style="{StaticResource MaterialDesignRaisedButton}"
                                     Background="{StaticResource NormalGradientBrush}"
                                     Foreground="White"
@@ -513,8 +521,8 @@ Title="Merge Pilot"
                             <Button x:Name="btnRefreshBranches"
                                     Grid.Column="15"
                                     Content="Refresh"
+                                    Command="{Binding RefreshBranchesCommand}"
                                     ToolTip="Refresh remote branch list for selected repositories"
-                                    Click="RefreshBranches_Click"
                                     Style="{StaticResource MaterialDesignRaisedButton}"
                                     Background="{StaticResource NormalGradientBrush}"
                                     Foreground="White"
