@@ -59,6 +59,42 @@ namespace MergePilot
                 return false;
             }
         }
+        /// <summary>
+        /// Executes a Git command in the specified repository with proper error handling.
+        /// </summary>
+        /// <param name="repoPath">The absolute path to the Git repository root directory.</param>
+        /// <param name="arguments">The Git command arguments (e.g., "status", "fetch origin main").</param>
+        /// <param name="timeout">Optional timeout for command execution. Defaults to 2 minutes per attempt.</param>
+        /// <param name="cancellationToken">Cancellation token for operation cancellation.</param>
+        /// <returns>
+        /// A <see cref="CommandResult"/> containing the exit code, stdout, and stderr.
+        /// Check <see cref="CommandResult.IsSuccess"/> to determine if execution was successful (exit code 0).
+        /// </returns>
+        /// <exception cref="ArgumentException">Thrown if repoPath is null or empty.</exception>
+        /// <exception cref="DirectoryNotFoundException">Thrown if repoPath does not exist.</exception>
+        /// <remarks>
+        /// This method properly manages process lifetime and captures both standard output
+        /// and error streams without deadlock using async operations. Process is killed if
+        /// timeout is exceeded or cancellation is requested.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// var result = await GitHelper.RunGitCommandAsync(
+        ///     "/path/to/repo",
+        ///     "fetch origin",
+        ///     TimeSpan.FromMinutes(5)
+        /// );
+        ///
+        /// if (result.IsSuccess)
+        /// {
+        ///     Console.WriteLine($"Success: {result.StdOut}");
+        /// }
+        /// else
+        /// {
+        ///     Console.WriteLine($"Error: {result.StdErr}");
+        /// }
+        /// </code>
+        /// </example>
         internal static async Task<CommandResult> RunGitCommandAsync(
             string repoPath,
             string arguments,

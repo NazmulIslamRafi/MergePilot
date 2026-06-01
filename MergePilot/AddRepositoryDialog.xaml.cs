@@ -45,34 +45,24 @@ namespace MergePilot
         {
             ErrorMessage.Text = "";
 
-            // Validate inputs
-            if (string.IsNullOrWhiteSpace(RepoNameTextBox.Text))
+            // Validate repository name
+            if (!InputValidator.IsValidRepositoryName(RepoNameTextBox.Text))
             {
-                ErrorMessage.Text = "Repository name is required.";
+                ErrorMessage.Text = "Repository name is required (max 255 characters).";
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(RepoPathTextBox.Text))
+            // Validate repository path
+            var repoPath = RepoPathTextBox.Text;
+            if (!InputValidator.IsValidRepositoryPath(repoPath))
             {
-                ErrorMessage.Text = "Repository path is required.";
-                return;
-            }
-
-            if (!Directory.Exists(RepoPathTextBox.Text))
-            {
-                ErrorMessage.Text = "Directory does not exist.";
-                return;
-            }
-
-            if (!Directory.Exists(Path.Combine(RepoPathTextBox.Text, ".git")))
-            {
-                ErrorMessage.Text = "Directory does not contain a .git folder. Is this a valid Git repository?";
+                ErrorMessage.Text = InputValidator.GetRepositoryPathError(repoPath);
                 return;
             }
 
             // Set result
             RepoName = RepoNameTextBox.Text;
-            RepoPath = RepoPathTextBox.Text;
+            RepoPath = repoPath;
             RemoteUrl = RemoteUrlTextBox.Text;
 
             this.DialogResult = true;
