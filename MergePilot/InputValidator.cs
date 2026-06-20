@@ -28,7 +28,10 @@ namespace MergePilot
             if (string.IsNullOrWhiteSpace(branch))
                 return false;
 
-            // Check for invalid characters
+            // Check for invalid characters (including whitespace — git rejects spaces in branch names)
+            if (branch.Any(c => char.IsWhiteSpace(c)))
+                return false;
+
             const string invalidChars = "@~^:?[]";
             if (branch.Any(c => invalidChars.Contains(c)))
                 return false;
@@ -58,6 +61,9 @@ namespace MergePilot
             if (string.IsNullOrWhiteSpace(branch))
                 return "Branch name cannot be empty.";
 
+            if (branch.Any(char.IsWhiteSpace))
+                return "Branch name cannot contain whitespace characters.";
+
             const string invalidChars = "@~^:?[]";
             var foundInvalid = branch.FirstOrDefault(c => invalidChars.Contains(c));
             if (foundInvalid != '\0')
@@ -83,8 +89,7 @@ namespace MergePilot
         /// <remarks>
         /// A valid repository path must:
         /// - Exist as a directory
-        /// - Contain a .git folder
-        /// - Be within the user's profile (no system paths)
+        /// - Contain a .git folder or .git file
         /// </remarks>
         public static bool IsValidRepositoryPath(string path)
         {
@@ -102,13 +107,8 @@ namespace MergePilot
                 if (!Directory.Exists(gitPath) && !File.Exists(gitPath))
                     return false;
 
-                // Prevent path traversal - restrict to user profile
-                var fullPath = Path.GetFullPath(path);
-                var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
-                // Allow paths within user profile
-                if (!fullPath.StartsWith(userProfile, StringComparison.OrdinalIgnoreCase))
-                    return false;
+                // Ensure the path can be normalized by the platform.
+                Path.GetFullPath(path);
 
                 return true;
             }
@@ -137,11 +137,7 @@ namespace MergePilot
 
             try
             {
-                var fullPath = Path.GetFullPath(path);
-                var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
-                if (!fullPath.StartsWith(userProfile, StringComparison.OrdinalIgnoreCase))
-                    return "Repository path is outside user profile (security restriction).";
+                Path.GetFullPath(path);
             }
             catch (Exception ex)
             {

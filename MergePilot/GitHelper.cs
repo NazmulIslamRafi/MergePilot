@@ -6,9 +6,62 @@ using System.Threading.Tasks;
 
 namespace MergePilot
 {
-    public record CommandResult(int ExitCode, string StdOut, string StdErr)
+    public record CommandResult(
+        int ExitCode,
+        string StdOut,
+        string StdErr,
+        GitCommandErrorKind ErrorKind = GitCommandErrorKind.None)
     {
         public bool IsSuccess => ExitCode == 0;
+    }
+
+    public enum GitCommandErrorKind
+    {
+        None,
+        Validation,
+        Repository,
+        Authentication,
+        Remote,
+        Timeout,
+        Conflict,
+        Network,
+        Unknown
+    }
+
+    public static class GitCommandErrorClassifier
+    {
+        public static GitCommandErrorKind Classify(int exitCode, string? stdout, string? stderr)
+        {
+            if (exitCode == 0)
+                return GitCommandErrorKind.None;
+
+            var combined = $"{stdout} {stderr}".ToLowerInvariant();
+
+            if (ContainsAny(combined, "timed out", "timeout", "command canceled"))
+                return GitCommandErrorKind.Timeout;
+
+            if (ContainsAny(combined, "merge conflict", "automatic merge failed", "conflict"))
+                return GitCommandErrorKind.Conflict;
+
+            if (ContainsAny(combined, "authentication failed", "permission denied", "publickey", "access denied", "could not read from remote repository"))
+                return GitCommandErrorKind.Authentication;
+
+            if (ContainsAny(combined, "could not resolve host", "failed to connect", "network is unreachable", "connection timed out"))
+                return GitCommandErrorKind.Network;
+
+            if (ContainsAny(combined, "not a git repository", "repository path not found"))
+                return GitCommandErrorKind.Repository;
+
+            if (ContainsAny(combined, "does not appear to be a git repository", "repository not found", "remote ref does not exist", "couldn't find remote ref", "remote origin already exists"))
+                return GitCommandErrorKind.Remote;
+
+            return GitCommandErrorKind.Unknown;
+        }
+
+        private static bool ContainsAny(string value, params string[] patterns)
+        {
+            return patterns.Any(pattern => value.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     public enum MergeStatus
@@ -35,7 +88,9 @@ namespace MergePilot
                     return "origin";
 
                 var first = res.StdOut.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).FirstOrDefault();
-                return string.IsNullOrWhiteSpace(first) ? "origin" : first!;
+                return GitCommandSafety.TryNormalizeRemoteName(first, out var remoteName, out _)
+                    ? remoteName
+                    : "origin";
             }
             catch
             {
@@ -51,7 +106,11 @@ namespace MergePilot
             if (string.IsNullOrWhiteSpace(branch)) return false;
             try
             {
-                var res = await RunGitCommandAsync(repoPath, $"ls-remote --heads {remoteName} {branch}", TimeSpan.FromSeconds(20), cancellationToken).ConfigureAwait(false);
+                if (!GitCommandSafety.TryNormalizeRemoteName(remoteName, out var safeRemoteName, out _) ||
+                    !GitCommandSafety.TryNormalizeBranchName(branch, out var safeBranch, out _))
+                    return false;
+
+                var res = await RunGitCommandAsync(repoPath, $"ls-remote --heads {safeRemoteName} {safeBranch}", TimeSpan.FromSeconds(20), cancellationToken).ConfigureAwait(false);
                 return res.IsSuccess && !string.IsNullOrWhiteSpace(res.StdOut);
             }
             catch
@@ -138,12 +197,18 @@ namespace MergePilot
                 var stderr = await stdErrTask.ConfigureAwait(false) ?? string.Empty;
                 var exitCode = process.ExitCode;
 
-                return new CommandResult(exitCode, stdout.TrimEnd('\r', '\n'), stderr.TrimEnd('\r', '\n'));
+                var normalizedStdOut = stdout.TrimEnd('\r', '\n');
+                var normalizedStdErr = stderr.TrimEnd('\r', '\n');
+                return new CommandResult(
+                    exitCode,
+                    normalizedStdOut,
+                    normalizedStdErr,
+                    GitCommandErrorClassifier.Classify(exitCode, normalizedStdOut, normalizedStdErr));
             }
             catch (OperationCanceledException) when (linkedCts.IsCancellationRequested)
             {
                 try { if (!process.HasExited) process.Kill(); } catch { }
-                return new CommandResult(-1, string.Empty, "Command canceled or timed out.");
+                return new CommandResult(-1, string.Empty, "Command canceled or timed out.", GitCommandErrorKind.Timeout);
             }
         }
 
@@ -160,7 +225,7 @@ namespace MergePilot
             CancellationToken cancellationToken = default)
         {
             delayBetweenAttempts ??= TimeSpan.FromSeconds(2);
-            CommandResult lastResult = new CommandResult(-1, string.Empty, string.Empty);
+            CommandResult lastResult = new CommandResult(-1, string.Empty, string.Empty, GitCommandErrorKind.Unknown);
 
             for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
@@ -198,48 +263,53 @@ namespace MergePilot
         /// </summary>
         public static async Task<BranchUpdateResult> EnsureBranchLatestAsync(string repoPath, string branch, CancellationToken cancellationToken = default)
         {
+            if (!GitCommandSafety.TryNormalizeBranchName(branch, out var safeBranch, out var branchError))
+                return new BranchUpdateResult(false, $"Invalid branch '{branch}': {branchError}");
+
             // 1) check if branch exists locally
-            var showRef = await RunGitCommandAsync(repoPath, $"show-ref --verify --quiet refs/heads/{branch}", TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+            var showRef = await RunGitCommandAsync(repoPath, $"show-ref --verify --quiet refs/heads/{safeBranch}", TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
             if (!showRef.IsSuccess)
             {
                 // create branch locally from origin
-                var fetchCreate = await RetryRunGitCommandAsync(repoPath, $"fetch origin {branch}:{branch}", 3, TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
+                var fetchCreate = await RetryRunGitCommandAsync(repoPath, $"fetch origin {safeBranch}:{safeBranch}", 3, TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
                 if (!fetchCreate.IsSuccess)
-                    return new BranchUpdateResult(false, $"Failed to create branch '{branch}' from origin: {fetchCreate.StdErr}");
+                    return new BranchUpdateResult(false, $"Failed to create branch '{safeBranch}' from origin: {fetchCreate.StdErr}");
 
-                return new BranchUpdateResult(true, $"Created '{branch}' from origin.");
+                return new BranchUpdateResult(true, $"Created '{safeBranch}' from origin.");
             }
 
             // 2) get local SHA
-            var localShaRes = await RunGitCommandAsync(repoPath, $"rev-parse {branch}", TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+            var localShaRes = await RunGitCommandAsync(repoPath, $"rev-parse {safeBranch}", TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
             if (!localShaRes.IsSuccess)
-                return new BranchUpdateResult(false, $"Failed to get local SHA for '{branch}': {localShaRes.StdErr}");
+                return new BranchUpdateResult(false, $"Failed to get local SHA for '{safeBranch}': {localShaRes.StdErr}");
             var localSha = localShaRes.StdOut.Trim();
 
             // 3) get remote SHA
-            var remoteRes = await RunGitCommandAsync(repoPath, $"ls-remote origin {branch}", TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+            var remoteRes = await RunGitCommandAsync(repoPath, $"ls-remote origin {safeBranch}", TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
             if (!remoteRes.IsSuccess)
-                return new BranchUpdateResult(false, $"Failed to get remote SHA for '{branch}': {remoteRes.StdErr}");
+                return new BranchUpdateResult(false, $"Failed to get remote SHA for '{safeBranch}': {remoteRes.StdErr}");
 
             var remoteOut = remoteRes.StdOut.Trim();
             if (string.IsNullOrWhiteSpace(remoteOut))
-                return new BranchUpdateResult(false, $"Remote branch '{branch}' not found on origin.");
+                return new BranchUpdateResult(false, $"Remote branch '{safeBranch}' not found on origin.");
 
-            var remoteSha = remoteOut?.Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+            var remoteSha = remoteOut.Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(remoteSha))
+                return new BranchUpdateResult(false, $"Failed to parse remote SHA for '{safeBranch}'.");
 
             if (string.Equals(localSha, remoteSha, StringComparison.OrdinalIgnoreCase))
             {
                 var shortSha = localSha?.Length > 7 ? localSha[..7] : localSha;
 
-                return new BranchUpdateResult(true, $"'{branch}' is already up-to-date ({shortSha}).");
+                return new BranchUpdateResult(true, $"'{safeBranch}' is already up-to-date ({shortSha}).");
             }
 
             // 4) fetch latest into local branch
-            var fetch = await RetryRunGitCommandAsync(repoPath, $"fetch --no-tags origin {branch}:{branch}", 3, TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
+            var fetch = await RetryRunGitCommandAsync(repoPath, $"fetch --no-tags origin {safeBranch}:{safeBranch}", 3, TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
             if (!fetch.IsSuccess)
-                return new BranchUpdateResult(false, $"Failed to fetch/update '{branch}': {fetch.StdErr}");
+                return new BranchUpdateResult(false, $"Failed to fetch/update '{safeBranch}': {fetch.StdErr}");
 
-            return new BranchUpdateResult(true, $"Updated '{branch}' -> {(remoteSha.Length >= 7 ? remoteSha.Substring(0, 7) : remoteSha)}.");
+            return new BranchUpdateResult(true, $"Updated '{safeBranch}' -> {(remoteSha.Length >= 7 ? remoteSha.Substring(0, 7) : remoteSha)}.");
         }
 
         /// <summary>
@@ -265,61 +335,67 @@ namespace MergePilot
             if (string.IsNullOrWhiteSpace(targetBranch))
                 return new MergeResult(MergeStatus.Failed, "Target branch is empty.");
 
+            if (!GitCommandSafety.TryNormalizeBranchName(sourceBranch, out var safeSourceBranch, out var sourceError))
+                return new MergeResult(MergeStatus.Failed, $"Invalid source branch '{sourceBranch}': {sourceError}");
+
+            if (!GitCommandSafety.TryNormalizeBranchName(targetBranch, out var safeTargetBranch, out var targetError))
+                return new MergeResult(MergeStatus.Failed, $"Invalid target branch '{targetBranch}': {targetError}");
+
             // Default timeouts and retry settings
             TimeSpan perAttemptTimeout = TimeSpan.FromMinutes(2);
             int retryAttempts = 3;
             TimeSpan retryDelay = TimeSpan.FromSeconds(2);
 
             // 1) fetch origin source
-            var fetchSource = await RetryRunGitCommandAsync(repoPath, $"fetch origin {sourceBranch}", retryAttempts, retryDelay, perAttemptTimeout, cancellationToken).ConfigureAwait(false);
+            var fetchSource = await RetryRunGitCommandAsync(repoPath, $"fetch origin {safeSourceBranch}", retryAttempts, retryDelay, perAttemptTimeout, cancellationToken).ConfigureAwait(false);
             if (!fetchSource.IsSuccess)
-                return new MergeResult(MergeStatus.Failed, $"Failed to fetch source branch '{sourceBranch}': {fetchSource.StdErr}", fetchSource);
+                return new MergeResult(MergeStatus.Failed, $"Failed to fetch source branch '{safeSourceBranch}': {fetchSource.StdErr}", fetchSource);
 
             // 2) fetch origin target
-            var fetchTarget = await RetryRunGitCommandAsync(repoPath, $"fetch origin {targetBranch}", retryAttempts, retryDelay, perAttemptTimeout, cancellationToken).ConfigureAwait(false);
+            var fetchTarget = await RetryRunGitCommandAsync(repoPath, $"fetch origin {safeTargetBranch}", retryAttempts, retryDelay, perAttemptTimeout, cancellationToken).ConfigureAwait(false);
             if (!fetchTarget.IsSuccess)
-                return new MergeResult(MergeStatus.Failed, $"Failed to fetch target branch '{targetBranch}': {fetchTarget.StdErr}", fetchTarget);
+                return new MergeResult(MergeStatus.Failed, $"Failed to fetch target branch '{safeTargetBranch}': {fetchTarget.StdErr}", fetchTarget);
 
             // 3) checkout target
-            var checkout = await RunGitCommandAsync(repoPath, $"checkout {targetBranch}", perAttemptTimeout, cancellationToken).ConfigureAwait(false);
+            var checkout = await RunGitCommandAsync(repoPath, $"checkout {safeTargetBranch}", perAttemptTimeout, cancellationToken).ConfigureAwait(false);
             if (!checkout.IsSuccess)
-                return new MergeResult(MergeStatus.Failed, $"Checkout failed for '{targetBranch}': {checkout.StdErr}", checkout);
+                return new MergeResult(MergeStatus.Failed, $"Checkout failed for '{safeTargetBranch}': {checkout.StdErr}", checkout);
 
             // 4) pull origin target (--no-edit)
-            var pull = await RetryRunGitCommandAsync(repoPath, $"pull --no-edit origin {targetBranch}", retryAttempts, retryDelay, perAttemptTimeout, cancellationToken).ConfigureAwait(false);
+            var pull = await RetryRunGitCommandAsync(repoPath, $"pull --no-edit origin {safeTargetBranch}", retryAttempts, retryDelay, perAttemptTimeout, cancellationToken).ConfigureAwait(false);
             if (!pull.IsSuccess)
-                return new MergeResult(MergeStatus.Failed, $"Pull failed for '{targetBranch}': {pull.StdErr}", pull);
+                return new MergeResult(MergeStatus.Failed, $"Pull failed for '{safeTargetBranch}': {pull.StdErr}", pull);
 
             // 5) check if source is already merged into target
             // git merge-base --is-ancestor origin/<source> HEAD  => exit code 0 means ancestor (already merged)
-            var mergeBaseCheck = await RunGitCommandAsync(repoPath, $"merge-base --is-ancestor origin/{sourceBranch} HEAD", perAttemptTimeout, cancellationToken).ConfigureAwait(false);
+            var mergeBaseCheck = await RunGitCommandAsync(repoPath, $"merge-base --is-ancestor origin/{safeSourceBranch} HEAD", perAttemptTimeout, cancellationToken).ConfigureAwait(false);
             if (mergeBaseCheck.IsSuccess)
             {
-                return new MergeResult(MergeStatus.Skipped, $"Source '{sourceBranch}' is already merged into '{targetBranch}'.");
+                return new MergeResult(MergeStatus.Skipped, $"Source '{safeSourceBranch}' is already merged into '{safeTargetBranch}'.");
             }
 
             // 6) merge origin/source into target --no-edit
-            var merge = await RunGitCommandAsync(repoPath, $"merge origin/{sourceBranch} --no-edit", perAttemptTimeout, cancellationToken).ConfigureAwait(false);
+            var merge = await RunGitCommandAsync(repoPath, $"merge origin/{safeSourceBranch} --no-edit", perAttemptTimeout, cancellationToken).ConfigureAwait(false);
             if (!merge.IsSuccess)
             {
                 // Detect conflict hints in output/stderr
                 var combined = (merge.StdOut + "\n" + merge.StdErr).ToLowerInvariant();
                 if (combined.Contains("conflict") || combined.Contains("merge conflict"))
                 {
-                    return new MergeResult(MergeStatus.Conflict, $"Merge conflict while merging '{sourceBranch}' into '{targetBranch}':\n{merge.StdErr}\n{merge.StdOut}", merge);
+                    return new MergeResult(MergeStatus.Conflict, $"Merge conflict while merging '{safeSourceBranch}' into '{safeTargetBranch}':\n{merge.StdErr}\n{merge.StdOut}", merge);
                 }
 
                 return new MergeResult(MergeStatus.Failed, $"Merge failed: {merge.StdErr}\n{merge.StdOut}", merge);
             }
 
             // 7) push origin target (with retry)
-            var push = await RetryRunGitCommandAsync(repoPath, $"push origin {targetBranch}", retryAttempts, retryDelay, perAttemptTimeout, cancellationToken).ConfigureAwait(false);
+            var push = await RetryRunGitCommandAsync(repoPath, $"push origin {safeTargetBranch}", retryAttempts, retryDelay, perAttemptTimeout, cancellationToken).ConfigureAwait(false);
             if (!push.IsSuccess)
             {
-                return new MergeResult(MergeStatus.Failed, $"Push failed for '{targetBranch}': {push.StdErr}", push);
+                return new MergeResult(MergeStatus.Failed, $"Push failed for '{safeTargetBranch}': {push.StdErr}", push);
             }
 
-            return new MergeResult(MergeStatus.Success, $"Successfully merged {sourceBranch} → {targetBranch}", push);
+            return new MergeResult(MergeStatus.Success, $"Successfully merged {safeSourceBranch} → {safeTargetBranch}", push);
         }
 
         /// <summary>
@@ -377,7 +453,10 @@ namespace MergePilot
             var branches = new List<string>();
             try
             {
-                var result = await RunGitCommandAsync(repoPath, $"ls-remote --heads {remoteName}", TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+                if (!GitCommandSafety.TryNormalizeRemoteName(remoteName, out var safeRemoteName, out _))
+                    return branches;
+
+                var result = await RunGitCommandAsync(repoPath, $"ls-remote --heads {safeRemoteName}", TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
                 if (result.IsSuccess)
                 {
                     foreach (var line in result.StdOut.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
@@ -403,11 +482,38 @@ namespace MergePilot
         }
 
         /// <summary>
+        /// Returns a one-line last-commit summary for a branch, e.g. "a1b2c3 • 2h ago • fix login bug".
+        /// Tries origin/branch first, then local branch. Returns "—" when no commit is found.
+        /// </summary>
+        public static async Task<string> GetLastCommitForBranchAsync(string repoPath, string branchName, CancellationToken cancellationToken = default)
+        {
+            if (!GitCommandSafety.TryNormalizeBranchName(branchName, out var safeBranch, out _))
+                return "—";
+
+            const string fmt = "--format=%h • %ar • %s";
+
+            // Try remote branch (origin/<branch>) first
+            var remote = await RunGitCommandAsync(repoPath, $"log origin/{safeBranch} -1 {fmt}", TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false);
+            if (remote.IsSuccess && !string.IsNullOrWhiteSpace(remote.StdOut))
+                return remote.StdOut.Trim();
+
+            // Fall back to local branch
+            var local = await RunGitCommandAsync(repoPath, $"log {safeBranch} -1 {fmt}", TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false);
+            if (local.IsSuccess && !string.IsNullOrWhiteSpace(local.StdOut))
+                return local.StdOut.Trim();
+
+            return "—";
+        }
+
+        /// <summary>
         /// Checkout a specific branch.
         /// </summary>
         public static async Task<CommandResult> CheckoutBranchAsync(string repoPath, string branch, CancellationToken cancellationToken = default)
         {
-            return await RunGitCommandAsync(repoPath, $"checkout {branch}", TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
+            if (!GitCommandSafety.TryNormalizeBranchName(branch, out var safeBranch, out var error))
+                return new CommandResult(-1, string.Empty, $"Invalid branch '{branch}': {error}", GitCommandErrorKind.Validation);
+
+            return await RunGitCommandAsync(repoPath, $"checkout {safeBranch}", TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -470,7 +576,7 @@ namespace MergePilot
                 {
                     // Create group hierarchy
                     var groupPath = "";
-                    BranchItem currentParent = null;
+                    BranchItem? currentParent = null;
                     int level = 0;
 
                     for (int i = 0; i < parts.Length - 1; i++)
@@ -509,7 +615,10 @@ namespace MergePilot
         /// </summary>
         public static async Task<CommandResult> PullBranchAsync(string repoPath, string branch, CancellationToken cancellationToken = default)
         {
-            return await RetryRunGitCommandAsync(repoPath, $"pull --no-edit origin {branch}", 3, TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
+            if (!GitCommandSafety.TryNormalizeBranchName(branch, out var safeBranch, out var error))
+                return new CommandResult(-1, string.Empty, $"Invalid branch '{branch}': {error}", GitCommandErrorKind.Validation);
+
+            return await RetryRunGitCommandAsync(repoPath, $"pull --no-edit origin {safeBranch}", 3, TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -519,7 +628,12 @@ namespace MergePilot
         {
             try
             {
-                var result = await RunGitCommandAsync(repoPath, $"merge-base --is-ancestor origin/{sourceBranch} {targetBranch}", TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
+                if (!GitCommandSafety.TryNormalizeRemoteName(remoteName, out var safeRemoteName, out _) ||
+                    !GitCommandSafety.TryNormalizeBranchName(sourceBranch, out var safeSourceBranch, out _) ||
+                    !GitCommandSafety.TryNormalizeBranchName(targetBranch, out var safeTargetBranch, out _))
+                    return false;
+
+                var result = await RunGitCommandAsync(repoPath, $"merge-base --is-ancestor {safeRemoteName}/{safeSourceBranch} {safeTargetBranch}", TimeSpan.FromSeconds(30), cancellationToken).ConfigureAwait(false);
                 return result.IsSuccess;
             }
             catch
@@ -533,7 +647,13 @@ namespace MergePilot
         /// </summary>
         public static async Task<CommandResult> MergeBranchSimpleAsync(string repoPath, string remoteName, string sourceBranch, CancellationToken cancellationToken = default)
         {
-            return await RunGitCommandAsync(repoPath, $"merge {remoteName}/{sourceBranch} --no-edit", TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
+            if (!GitCommandSafety.TryNormalizeRemoteName(remoteName, out var safeRemoteName, out var remoteError))
+                return new CommandResult(-1, string.Empty, $"Invalid remote '{remoteName}': {remoteError}", GitCommandErrorKind.Validation);
+
+            if (!GitCommandSafety.TryNormalizeBranchName(sourceBranch, out var safeSourceBranch, out var branchError))
+                return new CommandResult(-1, string.Empty, $"Invalid branch '{sourceBranch}': {branchError}", GitCommandErrorKind.Validation);
+
+            return await RunGitCommandAsync(repoPath, $"merge {safeRemoteName}/{safeSourceBranch} --no-edit", TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -541,8 +661,14 @@ namespace MergePilot
         /// </summary>
         public static async Task<CommandResult> MergeBranchAsync(string repoPath, string remoteName, string sourceBranch, bool noEdit = true, CancellationToken cancellationToken = default)
         {
+            if (!GitCommandSafety.TryNormalizeRemoteName(remoteName, out var safeRemoteName, out var remoteError))
+                return new CommandResult(-1, string.Empty, $"Invalid remote '{remoteName}': {remoteError}", GitCommandErrorKind.Validation);
+
+            if (!GitCommandSafety.TryNormalizeBranchName(sourceBranch, out var safeSourceBranch, out var branchError))
+                return new CommandResult(-1, string.Empty, $"Invalid branch '{sourceBranch}': {branchError}", GitCommandErrorKind.Validation);
+
             var noEditFlag = noEdit ? "--no-edit" : string.Empty;
-            return await RunGitCommandAsync(repoPath, $"merge {remoteName}/{sourceBranch} {noEditFlag}".Trim(), TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
+            return await RunGitCommandAsync(repoPath, $"merge {safeRemoteName}/{safeSourceBranch} {noEditFlag}".Trim(), TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -550,7 +676,10 @@ namespace MergePilot
         /// </summary>
         public static async Task<CommandResult> PushBranchAsync(string repoPath, string branch, CancellationToken cancellationToken = default)
         {
-            return await RetryRunGitCommandAsync(repoPath, $"push origin {branch}", 3, TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
+            if (!GitCommandSafety.TryNormalizeBranchName(branch, out var safeBranch, out var error))
+                return new CommandResult(-1, string.Empty, $"Invalid branch '{branch}': {error}", GitCommandErrorKind.Validation);
+
+            return await RetryRunGitCommandAsync(repoPath, $"push origin {safeBranch}", 3, TimeSpan.FromSeconds(2), TimeSpan.FromMinutes(2), cancellationToken).ConfigureAwait(false);
         }
     }
 }

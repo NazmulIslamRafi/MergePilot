@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Xunit;
 
 namespace MergePilot.Tests
@@ -117,6 +118,41 @@ namespace MergePilot.Tests
         #region Repository Path Validation Tests
 
         [Fact]
+        public void IsValidRepositoryPath_WithExistingGitRepository_ReturnsTrue()
+        {
+            var repoPath = CreateTemporaryGitRepository();
+
+            try
+            {
+                bool result = InputValidator.IsValidRepositoryPath(repoPath);
+
+                Assert.True(result);
+            }
+            finally
+            {
+                DeleteTemporaryRepository(repoPath);
+            }
+        }
+
+        [Fact]
+        public void IsValidRepositoryPath_WithExistingDirectoryWithoutGit_ReturnsFalse()
+        {
+            var repoPath = Path.Combine(Path.GetTempPath(), "MergePilot.InputValidator", Guid.NewGuid().ToString());
+            Directory.CreateDirectory(repoPath);
+
+            try
+            {
+                bool result = InputValidator.IsValidRepositoryPath(repoPath);
+
+                Assert.False(result);
+            }
+            finally
+            {
+                DeleteTemporaryRepository(repoPath);
+            }
+        }
+
+        [Fact]
         public void IsValidRepositoryPath_WithNonExistentPath_ReturnsFalse()
         {
             // Arrange
@@ -227,5 +263,19 @@ namespace MergePilot.Tests
         }
 
         #endregion
+
+        private static string CreateTemporaryGitRepository()
+        {
+            var repoPath = Path.Combine(Path.GetTempPath(), "MergePilot.InputValidator", Guid.NewGuid().ToString());
+            Directory.CreateDirectory(repoPath);
+            Directory.CreateDirectory(Path.Combine(repoPath, ".git"));
+            return repoPath;
+        }
+
+        private static void DeleteTemporaryRepository(string repoPath)
+        {
+            if (Directory.Exists(repoPath))
+                Directory.Delete(repoPath, recursive: true);
+        }
     }
 }

@@ -67,6 +67,9 @@ namespace MergePilot.ViewModels
         /// <param name="parameter">Command parameter from the binding.</param>
         public void Execute(object? parameter)
         {
+            if (!CanExecute(parameter))
+                return;
+
             _execute(parameter);
         }
     }

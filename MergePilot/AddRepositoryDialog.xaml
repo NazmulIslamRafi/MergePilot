@@ -46,7 +46,7 @@
                          Height="20"/>
                 <Button Grid.Column="1"
                         Content="🗂️ Browse"
-                        Click="BrowseFolder_Click"
+                        Command="{Binding BrowseFolderCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         Background="#0874F7"
                         Foreground="White"
                         BorderThickness="0"
@@ -78,7 +78,7 @@
 
         <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
             <Button Content="Save"
-                    Click="Save_Click"
+                    Command="{Binding SaveCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                     Background="#10B981"
                     Foreground="White"
                     BorderThickness="0"
@@ -86,7 +86,7 @@
                     Margin="0,0,10,0"
                     Height="15"/>
             <Button Content="Cancel"
-                    Click="Cancel_Click"
+                    Command="{Binding CancelCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                     Background="#64748B"
                     Foreground="White"
                     BorderThickness="0"

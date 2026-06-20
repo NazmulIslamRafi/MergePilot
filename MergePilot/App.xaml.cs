@@ -1,38 +1,62 @@
-﻿using System.Windows;
+using System;
+using System.Threading.Tasks;
+using System.Windows;
+using Microsoft.Extensions.DependencyInjection;
 using Application = System.Windows.Application;
 
 namespace MergePilot
 {
     /// <summary>
-    /// Interaction logic for App.xaml
+    /// Interaction logic for App.xaml.
     /// </summary>
     public partial class App : Application
     {
-        protected override void OnStartup(StartupEventArgs e)
+        private static IServiceProvider? _services;
+
+        /// <summary>
+        /// Application-wide DI container. Available after OnStartup completes.
+        /// </summary>
+        public static IServiceProvider Services => _services
+            ?? throw new InvalidOperationException("Services accessed before App.OnStartup completed.");
+
+        protected override async void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
 
-            // Prevent auto-shutdown
+            _services = new ServiceCollection()
+                .AddMergePilotServices()
+                .BuildServiceProvider();
+
             Application.Current.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
             var splash = new SplashScreen();
             splash.Show();
 
-            // Simulate loading (use await Task.Delay for async)
-            System.Threading.Thread.Sleep(3000);
+            try
+            {
+                await Task.Run(AppSettings.LoadWithFallback);
 
-            var mainWindow = new MainWindow();
-            //mainWindow.Show();
-
-            // Close splash after main window shows
-            splash.Close();
-
-            // Now revert shutdown mode
-            Application.Current.ShutdownMode = ShutdownMode.OnMainWindowClose;
-            Application.Current.MainWindow = mainWindow;
+                var mainWindow = new MainWindow(
+                    _services.GetRequiredService<IUserDialogService>(),
+                    _services.GetRequiredService<IFilePickerService>(),
+                    _services.GetRequiredService<IClipboardService>());
+                Application.Current.MainWindow = mainWindow;
+                Application.Current.ShutdownMode = ShutdownMode.OnMainWindowClose;
+                mainWindow.Show();
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show(
+                    $"MergePilot failed to start: {ex.Message}",
+                    "Startup Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                Shutdown(-1);
+            }
+            finally
+            {
+                splash.Close();
+            }
         }
-
-
     }
-
 }

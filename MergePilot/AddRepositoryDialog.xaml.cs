@@ -1,19 +1,30 @@
-using System.IO;
 using System.Windows;
-using System.Windows.Forms;
+using System.Windows.Input;
+using MergePilot.ViewModels;
 
 namespace MergePilot
 {
     public partial class AddRepositoryDialog : Window
     {
-        private AppSettings.RepositoryEntry _editingRepo;
+        private readonly AppSettings.RepositoryEntry? _editingRepo;
+        private readonly IFilePickerService _filePickers;
 
-        public string RepoName { get; set; }
-        public string RepoPath { get; set; }
-        public string RemoteUrl { get; set; }
+        public string RepoName { get; set; } = string.Empty;
+        public string RepoPath { get; set; } = string.Empty;
+        public string RemoteUrl { get; set; } = string.Empty;
+        public ICommand BrowseFolderCommand { get; }
+        public ICommand SaveCommand { get; }
+        public ICommand CancelCommand { get; }
 
-        public AddRepositoryDialog(AppSettings.RepositoryEntry existingRepo = null)
+        public AddRepositoryDialog(
+            AppSettings.RepositoryEntry? existingRepo = null,
+            IFilePickerService? filePickers = null)
         {
+            _filePickers = filePickers ?? new WpfFilePickerService();
+            BrowseFolderCommand = new RelayCommand(_ => BrowseFolder());
+            SaveCommand = new RelayCommand(_ => Save());
+            CancelCommand = new RelayCommand(_ => Cancel());
+
             InitializeComponent();
             _editingRepo = existingRepo;
 
@@ -26,22 +37,19 @@ namespace MergePilot
             }
         }
 
-        private void BrowseFolder_Click(object sender, RoutedEventArgs e)
+        private void BrowseFolder()
         {
-            using (var dialog = new FolderBrowserDialog())
+            var selectedPath = _filePickers.SelectFolder(
+                "Select a Git repository folder (must contain .git)",
+                showNewFolderButton: false);
+            if (!string.IsNullOrWhiteSpace(selectedPath))
             {
-                dialog.Description = "Select a Git repository folder (must contain .git)";
-                dialog.ShowNewFolderButton = false;
-
-                if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-                {
-                    RepoPathTextBox.Text = dialog.SelectedPath;
-                    ErrorMessage.Text = "";
-                }
+                RepoPathTextBox.Text = selectedPath;
+                ErrorMessage.Text = "";
             }
         }
 
-        private void Save_Click(object sender, RoutedEventArgs e)
+        private void Save()
         {
             ErrorMessage.Text = "";
 
@@ -69,7 +77,7 @@ namespace MergePilot
             this.Close();
         }
 
-        private void Cancel_Click(object sender, RoutedEventArgs e)
+        private void Cancel()
         {
             this.DialogResult = false;
             this.Close();

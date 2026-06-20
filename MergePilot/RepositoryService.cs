@@ -44,9 +44,19 @@ namespace MergePilot
     /// </remarks>
     public class RepositoryService
     {
+        private readonly Func<string, CancellationToken, Task<IEnumerable<BranchItem>>> _branchProvider;
+
         // Branch cache: key = repoPath, value = (branches, cached timestamp)
-        private readonly Dictionary<string, (IEnumerable<BranchItem> branches, DateTime timestamp)> _branchCache
+        private readonly Dictionary<string, (IReadOnlyList<BranchItem> branches, DateTime timestamp)> _branchCache
             = new(StringComparer.OrdinalIgnoreCase);
+        private int _cacheHits;
+        private int _cacheMisses;
+
+        public RepositoryService(
+            Func<string, CancellationToken, Task<IEnumerable<BranchItem>>>? branchProvider = null)
+        {
+            _branchProvider = branchProvider ?? GitHelper.GetBranchesAsync;
+        }
 
         /// <summary>
         /// Duration for which cached branch lists remain valid before requiring refresh.
@@ -94,17 +104,19 @@ namespace MergePilot
                 var age = DateTime.UtcNow - cached.timestamp;
                 if (age < CacheDuration)
                 {
+                    _cacheHits++;
                     OnProgressChanged(100, $"Branches loaded from cache (age: {age.TotalSeconds:F0}s)");
                     return cached.branches;
                 }
             }
 
             // Cache miss or expired - fetch from Git
+            _cacheMisses++;
             OnProgressChanged(50, "Fetching branches from repository...");
 
             try
             {
-                var branches = await GitHelper.GetBranchesAsync(repoPath, cancellationToken)
+                var branches = await _branchProvider(repoPath, cancellationToken)
                     .ConfigureAwait(false);
 
                 // Cache the result
@@ -236,12 +248,8 @@ namespace MergePilot
 
             try
             {
-                var result = await GitHelper.RetryRunGitCommandAsync(
-                    repoPath,
-                    $"pull origin {branch}",
-                    maxAttempts: 3,
-                    cancellationToken: cancellationToken
-                ).ConfigureAwait(false);
+                var result = await GitHelper.PullBranchAsync(repoPath, branch, cancellationToken)
+                    .ConfigureAwait(false);
 
                 if (result.IsSuccess)
                 {
@@ -317,6 +325,25 @@ namespace MergePilot
         }
 
         /// <summary>
+        /// Gets aggregate branch cache metrics for lightweight diagnostics.
+        /// </summary>
+        public BranchCacheMetrics GetCacheMetrics()
+        {
+            var lookupCount = _cacheHits + _cacheMisses;
+
+            return new BranchCacheMetrics
+            {
+                CachedRepositoryCount = _branchCache.Count,
+                CachedBranchCount = _branchCache.Values.Sum(entry => entry.branches.Count),
+                CacheHits = _cacheHits,
+                CacheMisses = _cacheMisses,
+                HitRate = lookupCount == 0
+                    ? 0
+                    : (double)_cacheHits / lookupCount
+            };
+        }
+
+        /// <summary>
         /// Raises the ProgressChanged event.
         /// </summary>
         protected virtual void OnProgressChanged(int progressPercentage, string statusMessage)
@@ -349,5 +376,17 @@ namespace MergePilot
         /// Gets or sets the number of branches in the cache.
         /// </summary>
         public int BranchCount { get; set; }
+    }
+
+    /// <summary>
+    /// Aggregate diagnostics for RepositoryService branch caching.
+    /// </summary>
+    public class BranchCacheMetrics
+    {
+        public int CachedRepositoryCount { get; set; }
+        public int CachedBranchCount { get; set; }
+        public int CacheHits { get; set; }
+        public int CacheMisses { get; set; }
+        public double HitRate { get; set; }
     }
 }

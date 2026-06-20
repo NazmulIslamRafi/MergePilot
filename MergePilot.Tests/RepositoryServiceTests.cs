@@ -181,6 +181,61 @@ namespace MergePilot.Tests
             Assert.NotNull(status);
             Assert.Empty(status);
         }
+
+        [Fact]
+        public async Task GetBranchesAsync_CachesProviderResultsAndReportsMetrics()
+        {
+            var providerCalls = 0;
+            var service = new RepositoryService((_, _) =>
+            {
+                providerCalls++;
+                return Task.FromResult<IEnumerable<BranchItem>>(new[]
+                {
+                    new BranchItem("main", "main"),
+                    new BranchItem("develop", "develop")
+                });
+            });
+
+            var first = await service.GetBranchesAsync("C:\\repo");
+            var second = await service.GetBranchesAsync("C:\\repo");
+            var metrics = service.GetCacheMetrics();
+            var status = service.GetCacheStatus();
+
+            Assert.Equal(1, providerCalls);
+            Assert.Equal(new[] { "main", "develop" }, first.Select(branch => branch.FullName));
+            Assert.Equal(new[] { "main", "develop" }, second.Select(branch => branch.FullName));
+            Assert.Equal(1, metrics.CachedRepositoryCount);
+            Assert.Equal(2, metrics.CachedBranchCount);
+            Assert.Equal(1, metrics.CacheHits);
+            Assert.Equal(1, metrics.CacheMisses);
+            Assert.Equal(0.5, metrics.HitRate);
+            Assert.True(status["C:\\repo"].IsValid);
+            Assert.Equal(2, status["C:\\repo"].BranchCount);
+        }
+
+        [Fact]
+        public async Task GetBranchesAsync_WithForceRefresh_BypassesCache()
+        {
+            var providerCalls = 0;
+            var service = new RepositoryService((_, _) =>
+            {
+                providerCalls++;
+                return Task.FromResult<IEnumerable<BranchItem>>(new[]
+                {
+                    new BranchItem($"branch-{providerCalls}", $"branch-{providerCalls}")
+                });
+            });
+
+            await service.GetBranchesAsync("C:\\repo");
+            var refreshed = await service.GetBranchesAsync("C:\\repo", forceRefresh: true);
+            var metrics = service.GetCacheMetrics();
+
+            Assert.Equal(2, providerCalls);
+            Assert.Equal("branch-2", refreshed.Single().FullName);
+            Assert.Equal(0, metrics.CacheHits);
+            Assert.Equal(2, metrics.CacheMisses);
+            Assert.Equal(0, metrics.HitRate);
+        }
     }
 
     public class OperationProgressEventArgsTests
@@ -260,6 +315,21 @@ namespace MergePilot.Tests
             Assert.Equal(TimeSpan.Zero, status.CacheAge);
             Assert.False(status.IsValid);
             Assert.Equal(0, status.BranchCount);
+        }
+    }
+
+    public class BranchCacheMetricsTests
+    {
+        [Fact]
+        public void BranchCacheMetrics_DefaultValues()
+        {
+            var metrics = new BranchCacheMetrics();
+
+            Assert.Equal(0, metrics.CachedRepositoryCount);
+            Assert.Equal(0, metrics.CachedBranchCount);
+            Assert.Equal(0, metrics.CacheHits);
+            Assert.Equal(0, metrics.CacheMisses);
+            Assert.Equal(0, metrics.HitRate);
         }
     }
 }

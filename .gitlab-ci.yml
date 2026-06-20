@@ -1,0 +1,55 @@
+# MergePilot GitLab CI
+#
+# Requires a Windows GitLab runner — WPF and Windows Forms targets
+# cannot build on Linux. Register a runner on a Windows host with:
+#   tag: windows
+#
+# To register a runner:
+#   gitlab-runner register --url <gitlab-url> --token <token>
+#   executor: shell  (or docker-windows)
+#   tags: windows
+
+stages:
+  - build
+  - test
+
+variables:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+
+default:
+  tags:
+    - windows
+
+# ── Build ─────────────────────────────────────────────────────────────────────
+
+build:
+  stage: build
+  script:
+    - dotnet restore MergePilot.sln
+    - dotnet build MergePilot.sln --no-restore --configuration Release
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - MergePilot/bin/Release/
+      - MergePilot.Tests/bin/Release/
+    expire_in: 1 hour
+
+# ── Test ──────────────────────────────────────────────────────────────────────
+
+test:
+  stage: test
+  needs: [build]
+  script:
+    - dotnet test MergePilot.sln
+        --no-restore
+        --no-build
+        --configuration Release
+        --logger "console;verbosity=normal"
+        --results-directory TestResults/
+  artifacts:
+    when: always
+    paths:
+      - TestResults/
+    expire_in: 1 week

@@ -10,14 +10,14 @@ namespace MergePilot
     {
         private bool? _isChecked = false;
 
-        public event PropertyChangedEventHandler PropertyChanged;
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         public string Name { get; set; }
         public string FullName { get; set; } // Full branch name (e.g., "0-Task/NewUpdate")
         public bool IsGroup { get; set; } // True if this is a folder/group, false if it's an actual branch
         public int Level { get; set; } // Indentation level
         public List<BranchItem> Children { get; set; } = new();
-        public BranchItem Parent { get; set; } // Reference to parent for tri-state logic
+        public BranchItem? Parent { get; set; } // Reference to parent for tri-state logic
         
         public bool? IsChecked 
         { 
@@ -32,7 +32,7 @@ namespace MergePilot
             }
         }
 
-        public BranchItem(string name, string fullName, bool isGroup = false, int level = 0, BranchItem parent = null)
+        public BranchItem(string name, string fullName, bool isGroup = false, int level = 0, BranchItem? parent = null)
         {
             Name = name;
             FullName = fullName;
@@ -41,7 +41,7 @@ namespace MergePilot
             Parent = parent;
         }
 
-        protected void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
@@ -81,8 +81,8 @@ namespace MergePilot
                 {
                     // Branch with path
                     string groupPath = "";
-                    BranchItem currentGroup = null;
-                    BranchItem parentGroup = null;
+                    BranchItem? currentGroup = null;
+                    BranchItem? parentGroup = null;
                     List<BranchItem> parentList = result;
 
                     // Build the group hierarchy
@@ -118,17 +118,20 @@ namespace MergePilot
         public static List<BranchItem> FlattenBranches(List<BranchItem> items)
         {
             var result = new List<BranchItem>();
+            FlattenBranchesInto(items, result);
+            return result;
+        }
 
+        private static void FlattenBranchesInto(List<BranchItem> items, List<BranchItem> result)
+        {
             foreach (var item in items)
             {
                 result.Add(item);
                 if (item.IsGroup && item.Children.Count > 0)
                 {
-                    result.AddRange(FlattenBranches(item.Children));
+                    FlattenBranchesInto(item.Children, result);
                 }
             }
-
-            return result;
         }
 
         /// <summary>

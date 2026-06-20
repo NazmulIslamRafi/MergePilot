@@ -131,12 +131,40 @@ namespace MergePilot
             /// Gets or sets the repository name this branch belongs to.
             /// </summary>
             public string? Repository { get; set; }
+
+            /// <summary>
+            /// Gets or sets whether this branch was added manually (typed) rather than selected from remote.
+            /// </summary>
+            public bool IsManual { get; set; } = false;
         }
 
+        internal const string SettingsPathEnvironmentVariable = "MERGEPILOT_SETTINGS_PATH";
+
         /// <summary>
-        /// Gets the path to the settings file (AppData/Local/MergePilot/settings.json).
+        /// Gets the path to the settings file (AppData/Local/MergePilot/settings.json by default).
         /// </summary>
-        private static string SettingsPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MergePilot", "settings.json");
+        private static string SettingsPath => ResolveSettingsPath(
+            SettingsPathOverride,
+            Environment.GetEnvironmentVariable(SettingsPathEnvironmentVariable));
+
+        /// <summary>
+        /// Overrides the settings file path for tests.
+        /// </summary>
+        internal static string? SettingsPathOverride { get; set; }
+
+        internal static string ResolveSettingsPath(string? explicitOverride, string? environmentOverride)
+        {
+            if (!string.IsNullOrWhiteSpace(explicitOverride))
+                return explicitOverride;
+
+            if (!string.IsNullOrWhiteSpace(environmentOverride))
+                return environmentOverride;
+
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "MergePilot",
+                "settings.json");
+        }
 
         /// <summary>
         /// Loads application settings from the settings file. Returns a new instance if the file does not exist or deserialization fails.
@@ -149,13 +177,106 @@ namespace MergePilot
                 var path = SettingsPath;
                 if (File.Exists(path))
                 {
-                    var json = File.ReadAllText(path);
-                    var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                    return JsonSerializer.Deserialize<AppSettings>(json, opts) ?? new AppSettings();
+                    return LoadFromFile(path);
                 }
             }
             catch { }
             return new AppSettings();
+        }
+
+        /// <summary>
+        /// Loads application settings and returns defaults if the settings file is corrupted or invalid.
+        /// Falls back to a backup file when the primary settings file cannot be read.
+        /// </summary>
+        /// <returns>The loaded and validated settings, backup settings, or default settings.</returns>
+        public static AppSettings LoadWithFallback()
+        {
+            try
+            {
+                if (File.Exists(SettingsPath))
+                {
+                    var settings = LoadFromFile(SettingsPath);
+                    if (settings.Validate().IsValid)
+                        return settings;
+                }
+                else
+                {
+                    return new AppSettings();
+                }
+            }
+            catch { }
+
+            var backupPath = SettingsPath + ".bak";
+            if (File.Exists(backupPath))
+            {
+                try
+                {
+                    var json = File.ReadAllText(backupPath);
+                    var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                    var backupSettings = JsonSerializer.Deserialize<AppSettings>(json, opts);
+
+                    if (backupSettings?.Validate().IsValid == true)
+                        return backupSettings;
+                }
+                catch { }
+            }
+
+            return new AppSettings();
+        }
+
+        private static AppSettings LoadFromFile(string path)
+        {
+            var json = File.ReadAllText(path);
+            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            return JsonSerializer.Deserialize<AppSettings>(json, opts) ?? new AppSettings();
+        }
+
+        /// <summary>
+        /// Validates the current settings values and configured repositories.
+        /// </summary>
+        /// <returns>A validation result with any discovered errors.</returns>
+        public AppSettingsValidationResult Validate()
+        {
+            var errors = new List<string>();
+
+            if (FlushIntervalMs < 50 || FlushIntervalMs > 5000)
+                errors.Add("FlushIntervalMs must be between 50 and 5000ms.");
+
+            if (LogFontSize < 8 || LogFontSize > 36)
+                errors.Add("LogFontSize must be between 8 and 36.");
+
+            if (LogMaxChars < 1000 || LogMaxChars > 1000000)
+                errors.Add("LogMaxChars must be between 1,000 and 1,000,000.");
+
+            if (Repositories == null)
+            {
+                errors.Add("Repositories cannot be null.");
+            }
+            else
+            {
+                for (var i = 0; i < Repositories.Count; i++)
+                {
+                    var repo = Repositories[i];
+                    if (repo == null)
+                    {
+                        errors.Add($"Repository {i}: Entry cannot be null.");
+                        continue;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(repo.Name))
+                        errors.Add($"Repository {i}: Name is required.");
+
+                    if (string.IsNullOrWhiteSpace(repo.Path))
+                        errors.Add($"Repository {i}: Path is required.");
+                }
+            }
+
+            CustomBranches ??= new List<BranchEntry>();
+            RecentBranches ??= new List<string>();
+            BranchCheckedState ??= new Dictionary<string, bool?>();
+            BranchExpandedState ??= new Dictionary<string, bool>();
+
+            return new AppSettingsValidationResult(errors.Count == 0, errors);
         }
 
         /// <summary>
@@ -166,14 +287,52 @@ namespace MergePilot
         {
             try
             {
-                var dir = Path.GetDirectoryName(SettingsPath);
-                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                    Directory.CreateDirectory(dir);
-
-                var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(SettingsPath, json);
+                SaveAtomically();
             }
             catch { }
+        }
+
+        /// <summary>
+        /// Saves settings with a backup and temporary file so interrupted writes do not corrupt settings.
+        /// </summary>
+        public void SaveAtomically()
+        {
+            var dir = Path.GetDirectoryName(SettingsPath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+
+            if (File.Exists(SettingsPath))
+                File.Copy(SettingsPath, SettingsPath + ".bak", overwrite: true);
+
+            var tempPath = SettingsPath + ".tmp";
+            var json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(tempPath, json);
+            File.Move(tempPath, SettingsPath, overwrite: true);
+        }
+    }
+
+    /// <summary>
+    /// Result of AppSettings validation.
+    /// </summary>
+    public class AppSettingsValidationResult
+    {
+        /// <summary>
+        /// Gets whether the settings are valid.
+        /// </summary>
+        public bool IsValid { get; }
+
+        /// <summary>
+        /// Gets validation errors. Empty when settings are valid.
+        /// </summary>
+        public List<string> Errors { get; }
+
+        /// <summary>
+        /// Initializes a new instance of the AppSettingsValidationResult class.
+        /// </summary>
+        public AppSettingsValidationResult(bool isValid, List<string> errors)
+        {
+            IsValid = isValid;
+            Errors = errors ?? new List<string>();
         }
     }
 }

@@ -3,82 +3,224 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:Controls="http://metro.mahapps.com/winfx/xaml/controls"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:local="clr-namespace:MergePilot"
         Title="Repository Manager"
         TitleAlignment="Center"
-        Height="600"
-        Width="700"
-        MinHeight="400"
-        MinWidth="600"
+        Height="580"
+        Width="760"
+        MinHeight="380"
+        MinWidth="580"
         WindowStartupLocation="CenterOwner"
         Background="#0A192F"
         GlowBrush="#0874f7"
         ShowIconOnTitleBar="True"
         BorderThickness="1">
 
+    <Window.Resources>
+        <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+
+        <!-- Removes default white WPF ListBoxItem background -->
+        <Style x:Key="TransparentItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <ContentPresenter HorizontalAlignment="Stretch"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Card icon button (edit / delete) -->
+        <Style x:Key="CardIconButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Width" Value="28"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Padding" Value="4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bg" Background="{TemplateBinding Background}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="#1E3A5F"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bg" Property="Background" Value="#0F2847"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Action button (add / refresh / close) -->
+        <Style x:Key="ActionButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="16,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bg" Background="{TemplateBinding Background}"
+                                CornerRadius="9" Padding="{TemplateBinding Padding}">
+                            <Border.Effect>
+                                <DropShadowEffect Color="#000000" BlurRadius="6" ShadowDepth="2" Opacity="0.25"/>
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bg" Property="Opacity" Value="0.88"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bg" Property="Opacity" Value="0.68"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="bg" Property="Background" Value="#334155"/>
+                                <Setter Property="Opacity" Value="0.55"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Search box TextBox style -->
+        <Style x:Key="SearchBoxStyle" TargetType="TextBox">
+            <Setter Property="Foreground" Value="#CBD5E1"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="CaretBrush" Value="#38BDF8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="4,6"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="materialDesign:HintAssist.Foreground" Value="#475569"/>
+        </Style>
+    </Window.Resources>
+
     <Grid Background="#0A192F">
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="60"/>
+            <RowDefinition Height="54"/>
         </Grid.RowDefinitions>
 
-        <!-- Main Content -->
-        <TabControl Grid.Row="0" 
-                    Background="#0F2744"
-                    Foreground="#0284C7">
+        <TabControl Grid.Row="0"
+                    Background="#0A192F"
+                    Foreground="#CBD5E1"
+                    BorderThickness="0"
+                    Padding="0">
 
-            <!-- Repositories Tab -->
-            <TabItem Header="📁 Repositories" Background="#1A3A52">
-                <Grid Background="#0F2744">
+            <!-- ══════════════ REPOSITORIES TAB ══════════════ -->
+            <TabItem Background="#0A192F" Foreground="#CBD5E1">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal" Margin="4,0">
+                        <materialDesign:PackIcon Kind="FolderOutline" Width="14" Height="14"
+                                                 VerticalAlignment="Center" Margin="0,0,5,0"
+                                                 Foreground="#38BDF8"/>
+                        <TextBlock Text="Repositories" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </TabItem.Header>
+
+                <Grid Background="#0A192F">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
+                    <!-- Search box -->
+                    <Border Grid.Row="0" Margin="10,8,10,4" CornerRadius="7"
+                            Background="#142033" BorderBrush="#1E293B" BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <materialDesign:PackIcon Grid.Column="0" Kind="Magnify"
+                                                     Width="14" Height="14" Foreground="#475569"
+                                                     VerticalAlignment="Center" Margin="9,0,4,0"/>
+                            <TextBox Grid.Column="1"
+                                     Style="{StaticResource SearchBoxStyle}"
+                                     Text="{Binding RepoSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                     materialDesign:HintAssist.Hint="Search by name or path..."/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Repository list -->
                     <ListBox x:Name="RepositoriesList"
-                             Grid.Row="0"
-                             Background="#1A3A52"
-                             Foreground="#CBD5E1"
-                             Margin="10"
-                             VerticalAlignment="Stretch">
+                             Grid.Row="1"
+                             ItemsSource="{Binding Repositories}"
+                             Background="#0A192F"
+                             BorderThickness="0"
+                             Padding="10,0,10,4"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.CanContentScroll="False"
+                             VirtualizingPanel.IsVirtualizing="False"
+                             ItemContainerStyle="{StaticResource TransparentItemStyle}">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Border BorderBrush="#334155" BorderThickness="1" Padding="10" Margin="0,5">
+                                <Border Margin="0,2" Padding="10,6" CornerRadius="7"
+                                        BorderBrush="#1E3A5F" BorderThickness="1">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="#0F1D2E"/>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#162840"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <StackPanel Orientation="Vertical" Grid.Column="0">
-                                            <TextBlock Text="{Binding Name}" 
-                                                       Foreground="#38BDF8" 
-                                                       FontWeight="Bold"
-                                                       FontSize="14"/>
-                                            <TextBlock Text="{Binding Path}" 
-                                                       Foreground="#94A3B8" 
-                                                       FontSize="11"
-                                                       TextWrapping="Wrap"
-                                                       Margin="0,5,0,0"/>
+
+                                        <materialDesign:PackIcon Kind="FolderOpen" Grid.Column="0"
+                                            Width="16" Height="16" Foreground="#38BDF8"
+                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
+
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}"
+                                                       Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="13"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding Path}"
+                                                       Foreground="#475569" FontSize="11"
+                                                       Margin="0,1,0,0" TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding Path}"/>
                                         </StackPanel>
-                                        <StackPanel Orientation="Horizontal" 
-                                                    Grid.Column="1"
-                                                    HorizontalAlignment="Right"
-                                                    VerticalAlignment="Center"
-                                                    Margin="10,0,0,0">
-                                            <Button Content="✏️" 
-                                                    Padding="5"
-                                                    Click="EditRepo_Click"
-                                                    Margin="0,0,5,0"
-                                                    ToolTip="Edit Repository"
-                                                    Background="Transparent"
-                                                    BorderThickness="0"
-                                                    Cursor="Hand"/>
-                                            <Button Content="🗑️" 
-                                                    Padding="5"
-                                                    Click="DeleteRepo_Click"
-                                                    ToolTip="Delete Repository"
-                                                    Background="Transparent"
-                                                    BorderThickness="0"
-                                                    Cursor="Hand"/>
+
+                                        <StackPanel Grid.Column="2" Orientation="Horizontal"
+                                                    VerticalAlignment="Center" Margin="6,0,0,0">
+                                            <Button Style="{StaticResource CardIconButtonStyle}"
+                                                    Command="{Binding DataContext.EditRepositoryCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip="Edit">
+                                                <materialDesign:PackIcon Kind="PencilOutline" Width="14" Height="14" Foreground="#60A5FA"/>
+                                            </Button>
+                                            <Button Style="{StaticResource CardIconButtonStyle}"
+                                                    Command="{Binding DataContext.DeleteRepositoryCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                    CommandParameter="{Binding}"
+                                                    Margin="2,0,0,0"
+                                                    ToolTip="Delete">
+                                                <materialDesign:PackIcon Kind="TrashCanOutline" Width="14" Height="14" Foreground="#EF4444"/>
+                                            </Button>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
@@ -86,91 +228,179 @@
                         </ListBox.ItemTemplate>
                     </ListBox>
 
-                    <StackPanel Grid.Row="1" 
-                                Orientation="Horizontal" 
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Bottom"
-                                Margin="10"
-                                Height="50">
-                        <Button Content="➕ Add Repository"
-                                Click="AddRepo_Click"
-                                Padding="15,10"
-                                Background="#0874F7"
-                                Foreground="White"
-                                BorderThickness="0"
-                                Cursor="Hand"
-                                Margin="0,0,5,0"
-                                FontSize="14"
-                                FontWeight="Bold"
-                                Height="40"
-                                VerticalAlignment="Center"/>
-                        <Button Content="🔄 Refresh Branches"
-                                Click="RefreshBranches_Click"
-                                Padding="15,10"
-                                Background="#10B981"
-                                Foreground="White"
-                                BorderThickness="0"
-                                Cursor="Hand"
-                                FontSize="14"
-                                FontWeight="Bold"
-                                Height="40"
-                                VerticalAlignment="Center"/>
+                    <StackPanel Grid.Row="2" Orientation="Horizontal"
+                                HorizontalAlignment="Right" Margin="10,5,10,6">
+                        <Button Style="{StaticResource ActionButtonStyle}"
+                                Command="{Binding AddRepositoryCommand}"
+                                Margin="0,0,8,0">
+                            <Button.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#0874F7" Offset="0"/>
+                                    <GradientStop Color="#0550C0" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Button.Background>
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Plus" Width="14" Height="14"
+                                                         VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                <TextBlock Text="ADD REPOSITORY" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource ActionButtonStyle}"
+                                Command="{Binding RefreshBranchesCommand}"
+                                IsEnabled="{Binding CanRefreshBranches}">
+                            <Button.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#10B981" Offset="0"/>
+                                    <GradientStop Color="#059669" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Button.Background>
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Refresh" Width="14" Height="14"
+                                                         VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                <TextBlock Text="{Binding RefreshBranchesButtonText}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </Grid>
             </TabItem>
 
-            <!-- Branches Tab -->
-            <TabItem Header="🌿 Custom Branches" Background="#1A3A52">
-                <Grid Background="#0F2744">
+            <!-- ══════════════ CUSTOM BRANCHES TAB ══════════════ -->
+            <TabItem Background="#0A192F" Foreground="#CBD5E1">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal" Margin="4,0">
+                        <materialDesign:PackIcon Kind="SourceBranch" Width="14" Height="14"
+                                                 VerticalAlignment="Center" Margin="0,0,5,0"
+                                                 Foreground="#38BDF8"/>
+                        <TextBlock Text="Custom Branches" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                    </StackPanel>
+                </TabItem.Header>
+
+                <Grid Background="#0A192F">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
+                    <!-- Search box -->
+                    <Border Grid.Row="0" Margin="10,8,10,4" CornerRadius="7"
+                            Background="#142033" BorderBrush="#1E293B" BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <materialDesign:PackIcon Grid.Column="0" Kind="Magnify"
+                                                     Width="14" Height="14" Foreground="#475569"
+                                                     VerticalAlignment="Center" Margin="9,0,4,0"/>
+                            <TextBox Grid.Column="1"
+                                     Style="{StaticResource SearchBoxStyle}"
+                                     Text="{Binding BranchSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                     materialDesign:HintAssist.Hint="Search by branch or repository..."/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Branch list -->
                     <ListBox x:Name="BranchesList"
-                             Grid.Row="0"
-                             Background="#1A3A52"
-                             Foreground="#CBD5E1"
-                             Margin="10"
-                             VerticalAlignment="Stretch">
+                             Grid.Row="1"
+                             ItemsSource="{Binding Branches}"
+                             Background="#0A192F"
+                             BorderThickness="0"
+                             Padding="10,0,10,4"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.CanContentScroll="False"
+                             VirtualizingPanel.IsVirtualizing="False"
+                             ItemContainerStyle="{StaticResource TransparentItemStyle}">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Border BorderBrush="#334155" BorderThickness="1" Padding="10" Margin="0,5">
+                                <Border Margin="0,2" Padding="10,6" CornerRadius="7"
+                                        BorderBrush="#1E3A5F" BorderThickness="1">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="#0F1D2E"/>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#162840"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <!-- branch name + repo -->
+                                            <ColumnDefinition Width="160" MinWidth="100"/>
+                                            <!-- last commit (fills middle space) -->
                                             <ColumnDefinition Width="*"/>
+                                            <!-- action buttons -->
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <StackPanel Orientation="Vertical" Grid.Column="0">
-                                            <TextBlock Text="{Binding BranchName}" 
-                                                       Foreground="#38BDF8" 
-                                                       FontWeight="Bold"
-                                                       FontSize="14"/>
-                                            <TextBlock Text="{Binding Repository}" 
-                                                       Foreground="#94A3B8" 
-                                                       FontSize="11"
-                                                       Margin="0,5,0,0"/>
+
+                                        <!-- Branch icon -->
+                                        <materialDesign:PackIcon Kind="SourceBranch" Grid.Column="0"
+                                            Width="16" Height="16" Foreground="#38BDF8"
+                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
+
+                                        <!-- Branch name + repo name -->
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding BranchName}"
+                                                           Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="12"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <Border Visibility="{Binding IsManual, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                        Background="#1C1917" CornerRadius="4"
+                                                        Padding="4,1" Margin="6,0,0,0" VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <materialDesign:PackIcon Kind="KeyboardOutline" Width="9" Height="9"
+                                                            Foreground="#FDE68A" VerticalAlignment="Center" Margin="0,0,2,0"/>
+                                                        <TextBlock Text="Manual" Foreground="#FDE68A"
+                                                                   FontSize="10" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,1,0,0">
+                                                <materialDesign:PackIcon Kind="FolderOutline" Width="10" Height="10"
+                                                    Foreground="#475569" VerticalAlignment="Center" Margin="0,0,3,0"/>
+                                                <TextBlock Text="{Binding Repository}"
+                                                           Foreground="#475569" FontSize="11" VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
                                         </StackPanel>
-                                        <StackPanel Orientation="Horizontal" 
-                                                    Grid.Column="1"
-                                                    HorizontalAlignment="Right"
-                                                    VerticalAlignment="Center"
-                                                    Margin="10,0,0,0">
-                                            <Button Content="✏️" 
-                                                    Padding="5"
-                                                    Click="EditBranch_Click"
-                                                    Margin="0,0,5,0"
-                                                    ToolTip="Edit Branch"
-                                                    Background="Transparent"
-                                                    BorderThickness="0"
-                                                    Cursor="Hand"/>
-                                            <Button Content="🗑️" 
-                                                    Padding="5"
-                                                    Click="DeleteBranch_Click"
-                                                    ToolTip="Delete Branch"
-                                                    Background="Transparent"
-                                                    BorderThickness="0"
-                                                    Cursor="Hand"/>
+
+                                        <!-- Last commit info (middle column) -->
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center"
+                                                    Margin="12,0,8,0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <materialDesign:PackIcon Kind="SourceCommit" Width="11" Height="11"
+                                                    Foreground="#475569" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                                <TextBlock Text="Last commit"
+                                                           Foreground="#334155" FontSize="10"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding LastCommitInfo}"
+                                                       Foreground="#64748B" FontSize="11"
+                                                       Margin="0,1,0,0"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding LastCommitInfo}"/>
+                                        </StackPanel>
+
+                                        <!-- Action buttons -->
+                                        <StackPanel Grid.Column="3" Orientation="Horizontal"
+                                                    VerticalAlignment="Center" Margin="4,0,0,0">
+                                            <Button Style="{StaticResource CardIconButtonStyle}"
+                                                    Command="{Binding DataContext.EditBranchCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip="Edit">
+                                                <materialDesign:PackIcon Kind="PencilOutline" Width="14" Height="14" Foreground="#60A5FA"/>
+                                            </Button>
+                                            <Button Style="{StaticResource CardIconButtonStyle}"
+                                                    Command="{Binding DataContext.DeleteBranchCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                    CommandParameter="{Binding}"
+                                                    Margin="2,0,0,0"
+                                                    ToolTip="Delete">
+                                                <materialDesign:PackIcon Kind="TrashCanOutline" Width="14" Height="14" Foreground="#EF4444"/>
+                                            </Button>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
@@ -178,41 +408,42 @@
                         </ListBox.ItemTemplate>
                     </ListBox>
 
-                    <StackPanel Grid.Row="1" 
-                                Orientation="Horizontal" 
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Bottom"
-                                Margin="10"
-                                Height="50">
-                        <Button Content="➕ Add Branch"
-                                Click="AddBranch_Click"
-                                Padding="15,10"
-                                Background="#0874F7"
-                                Foreground="White"
-                                BorderThickness="0"
-                                Cursor="Hand"
-                                FontSize="14"
-                                FontWeight="Bold"
-                                Height="40"
-                                VerticalAlignment="Center"/>
+                    <StackPanel Grid.Row="2" Orientation="Horizontal"
+                                HorizontalAlignment="Right" Margin="10,5,10,6">
+                        <Button Style="{StaticResource ActionButtonStyle}"
+                                Command="{Binding AddBranchCommand}">
+                            <Button.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#0874F7" Offset="0"/>
+                                    <GradientStop Color="#0550C0" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Button.Background>
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Plus" Width="14" Height="14"
+                                                         VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                <TextBlock Text="ADD BRANCH" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </Grid>
             </TabItem>
         </TabControl>
 
-        <!-- Footer Buttons -->
-        <StackPanel Grid.Row="1"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Center"
-                    Margin="10">
-            <Button Content="Close"
-                    Click="Close_Click"
-                    Padding="20,10"
-                    Background="#64748B"
-                    Foreground="White"
-                    BorderThickness="0"
-                    Cursor="Hand"/>
-        </StackPanel>
+        <!-- Footer -->
+        <Border Grid.Row="1" Background="#071525" BorderBrush="#1E293B" BorderThickness="0,1,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                        VerticalAlignment="Center" Margin="14,0">
+                <Button Style="{StaticResource ActionButtonStyle}"
+                        Background="#334155"
+                        Command="{Binding CloseCommand}"
+                        MinWidth="90">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="Close" Width="13" Height="13"
+                                                 VerticalAlignment="Center" Margin="0,0,5,0"/>
+                        <TextBlock Text="CLOSE" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Border>
     </Grid>
 </Controls:MetroWindow>

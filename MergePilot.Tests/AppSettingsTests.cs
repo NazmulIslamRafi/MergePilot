@@ -8,17 +8,20 @@ namespace MergePilot.Tests
 {
     public class AppSettingsTests : IDisposable
     {
-        private string _testSettingsPath;
+        private readonly string _testSettingsPath;
 
         public AppSettingsTests()
         {
             // Create a temporary directory for test settings
             _testSettingsPath = Path.Combine(Path.GetTempPath(), "MergePilot.Tests", Guid.NewGuid().ToString());
             Directory.CreateDirectory(_testSettingsPath);
+            AppSettings.SettingsPathOverride = Path.Combine(_testSettingsPath, "settings.json");
         }
 
         public void Dispose()
         {
+            AppSettings.SettingsPathOverride = null;
+
             // Clean up the temporary directory
             if (Directory.Exists(_testSettingsPath))
                 Directory.Delete(_testSettingsPath, recursive: true);
@@ -41,6 +44,31 @@ namespace MergePilot.Tests
         }
 
         [Fact]
+        public void ResolveSettingsPath_WithEnvironmentOverride_UsesEnvironmentPath()
+        {
+            var environmentPath = Path.Combine(_testSettingsPath, "profile-settings.json");
+
+            var resolved = AppSettings.ResolveSettingsPath(
+                explicitOverride: null,
+                environmentOverride: environmentPath);
+
+            Assert.Equal(environmentPath, resolved);
+        }
+
+        [Fact]
+        public void ResolveSettingsPath_WithExplicitOverride_PrefersExplicitOverride()
+        {
+            var explicitPath = Path.Combine(_testSettingsPath, "explicit-settings.json");
+            var environmentPath = Path.Combine(_testSettingsPath, "profile-settings.json");
+
+            var resolved = AppSettings.ResolveSettingsPath(
+                explicitOverride: explicitPath,
+                environmentOverride: environmentPath);
+
+            Assert.Equal(explicitPath, resolved);
+        }
+
+        [Fact]
         public void Save_CreatesSettingsDirectory()
         {
             // Arrange
@@ -56,8 +84,7 @@ namespace MergePilot.Tests
 
             // Assert - Directory should be created
             var settingsDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "MergePilot"
+                _testSettingsPath
             );
             Assert.True(Directory.Exists(settingsDir));
         }
@@ -168,6 +195,143 @@ namespace MergePilot.Tests
             Assert.NotNull(deserialized);
             Assert.Equal(entry.BranchName, deserialized.BranchName);
             Assert.Equal(entry.Repository, deserialized.Repository);
+        }
+
+        [Fact]
+        public void Validate_WithDefaultSettings_ReturnsValid()
+        {
+            // Arrange
+            var settings = new AppSettings();
+
+            // Act
+            var result = settings.Validate();
+
+            // Assert
+            Assert.True(result.IsValid);
+            Assert.Empty(result.Errors);
+        }
+
+        [Fact]
+        public void Validate_WithInvalidLogSettings_ReturnsErrors()
+        {
+            // Arrange
+            var settings = new AppSettings
+            {
+                FlushIntervalMs = 10,
+                LogFontSize = 4,
+                LogMaxChars = 10
+            };
+
+            // Act
+            var result = settings.Validate();
+
+            // Assert
+            Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, e => e.Contains("FlushIntervalMs"));
+            Assert.Contains(result.Errors, e => e.Contains("LogFontSize"));
+            Assert.Contains(result.Errors, e => e.Contains("LogMaxChars"));
+        }
+
+        [Fact]
+        public void Validate_WithMissingRepositoryFields_ReturnsErrors()
+        {
+            // Arrange
+            var settings = new AppSettings();
+            settings.Repositories.Add(new AppSettings.RepositoryEntry());
+
+            // Act
+            var result = settings.Validate();
+
+            // Assert
+            Assert.False(result.IsValid);
+            Assert.Contains(result.Errors, e => e.Contains("Name is required"));
+            Assert.Contains(result.Errors, e => e.Contains("Path is required"));
+        }
+
+        [Fact]
+        public void Validate_WithUnavailableRepositoryPath_KeepsSettingsValid()
+        {
+            // Arrange
+            var settings = new AppSettings();
+            settings.Repositories.Add(new AppSettings.RepositoryEntry
+            {
+                Name = "OfflineRepo",
+                Path = Path.Combine(_testSettingsPath, "repo-that-is-not-available")
+            });
+
+            // Act
+            var result = settings.Validate();
+
+            // Assert
+            Assert.True(result.IsValid);
+            Assert.Empty(result.Errors);
+        }
+
+        [Fact]
+        public void SaveAtomically_WhenExistingSettingsExist_CreatesBackup()
+        {
+            // Arrange
+            var original = new AppSettings { AutoOpenLogs = false };
+            original.SaveAtomically();
+
+            var updated = new AppSettings { AutoOpenLogs = true };
+
+            // Act
+            updated.SaveAtomically();
+
+            // Assert
+            var backupPath = AppSettings.SettingsPathOverride + ".bak";
+            Assert.True(File.Exists(backupPath));
+
+            var backupJson = File.ReadAllText(backupPath);
+            var backup = JsonSerializer.Deserialize<AppSettings>(backupJson);
+            Assert.NotNull(backup);
+            Assert.False(backup.AutoOpenLogs);
+        }
+
+        [Fact]
+        public void LoadWithFallback_WithCorruptedPrimary_LoadsValidBackup()
+        {
+            // Arrange
+            var backup = new AppSettings
+            {
+                AutoOpenLogs = false,
+                LogFontSize = 16,
+                LogMaxChars = 300000
+            };
+
+            var backupJson = JsonSerializer.Serialize(backup, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(AppSettings.SettingsPathOverride!, "{ invalid json");
+            File.WriteAllText(AppSettings.SettingsPathOverride + ".bak", backupJson);
+
+            // Act
+            var loaded = AppSettings.LoadWithFallback();
+
+            // Assert
+            Assert.False(loaded.AutoOpenLogs);
+            Assert.Equal(16, loaded.LogFontSize);
+            Assert.Equal(300000, loaded.LogMaxChars);
+        }
+
+        [Fact]
+        public void LoadWithFallback_WithInvalidPrimary_ReturnsDefaultsWhenNoBackupExists()
+        {
+            // Arrange
+            var invalid = new AppSettings
+            {
+                FlushIntervalMs = 1,
+                LogFontSize = 1,
+                LogMaxChars = 1
+            };
+            invalid.SaveAtomically();
+
+            // Act
+            var loaded = AppSettings.LoadWithFallback();
+
+            // Assert
+            Assert.Equal(200, loaded.FlushIntervalMs);
+            Assert.Equal(13.0, loaded.LogFontSize);
+            Assert.Equal(200000, loaded.LogMaxChars);
         }
     }
 }

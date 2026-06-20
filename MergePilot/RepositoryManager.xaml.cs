@@ -1,224 +1,292 @@
 using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
 using MahApps.Metro.Controls;
+using MergePilot.ViewModels;
 
 namespace MergePilot
 {
     /// <summary>
-    /// Repository and Branch Manager Window
+    /// Repository and branch manager window.
     /// </summary>
     public partial class RepositoryManager : MetroWindow
     {
-        private AppSettings _settings;
-        private ObservableCollection<AppSettings.RepositoryEntry> _repositories;
-        private ObservableCollection<AppSettings.BranchEntry> _branches;
+        private AppSettings _settings = new();
+        private readonly RepositoryConfigurationService _configurationService = new();
+        private readonly RepositoryManagerViewModel _viewModel;
+        private readonly IUserDialogService _dialogs = new WpfUserDialogService();
+        private System.Threading.CancellationTokenSource _commitLoadCts = new();
 
         public RepositoryManager()
         {
             InitializeComponent();
-            _repositories = new ObservableCollection<AppSettings.RepositoryEntry>();
-            _branches = new ObservableCollection<AppSettings.BranchEntry>();
+
+            _viewModel = new RepositoryManagerViewModel();
+            DataContext = _viewModel;
+            ConfigureWorkflowCommands();
         }
 
         public void LoadData(AppSettings settings)
         {
             _settings = settings;
-            RefreshRepositories();
-            RefreshBranches();
+            _viewModel.LoadData(settings);
+            _ = LoadBranchCommitInfoAsync();
         }
 
-        private void RefreshRepositories()
+        private void ConfigureWorkflowCommands()
         {
-            _repositories.Clear();
-            if (_settings?.Repositories != null)
+            _viewModel.ConfigureWorkflowActions(new RepositoryManagerWorkflowActions
             {
-                foreach (var repo in _settings.Repositories)
-                {
-                    _repositories.Add(repo);
-                }
-            }
-            RepositoriesList.ItemsSource = _repositories;
+                AddRepository = AddRepository,
+                EditRepository = EditRepository,
+                DeleteRepository = DeleteRepository,
+                RefreshBranches = RefreshBranches,
+                AddBranch = AddBranch,
+                EditBranch = EditBranch,
+                DeleteBranch = DeleteBranch,
+                Close = Close
+            });
         }
 
-        private void RefreshBranches()
+        private void AddRepository()
         {
-            _branches.Clear();
-            if (_settings?.CustomBranches != null)
+            var dialog = new AddRepositoryDialog { Owner = this };
+            if (dialog.ShowDialog() != true)
+                return;
+
+            var result = _configurationService.AddRepository(
+                _settings,
+                dialog.RepoName,
+                dialog.RepoPath,
+                dialog.RemoteUrl,
+                RepositoryPathRequirement.RequireGitRepository);
+            if (!result.IsSuccess)
             {
-                foreach (var branch in _settings.CustomBranches)
-                {
-                    _branches.Add(branch);
-                }
+                _dialogs.ShowError(result.Message, "Invalid Path");
+                return;
             }
-            BranchesList.ItemsSource = _branches;
+
+            _viewModel.RefreshRepositories();
+            _dialogs.ShowInformation($"Repository '{dialog.RepoName}' added successfully!", "Success");
         }
 
-        private void AddRepo_Click(object sender, RoutedEventArgs e)
+        private void EditRepository(AppSettings.RepositoryEntry? repository)
         {
-            var dialog = new AddRepositoryDialog();
-            if (dialog.ShowDialog() == true)
+            if (repository == null)
+                return;
+
+            var dialog = new AddRepositoryDialog(repository) { Owner = this };
+            if (dialog.ShowDialog() != true)
+                return;
+
+            var result = _configurationService.UpdateRepository(
+                _settings,
+                _settings.Repositories.IndexOf(repository),
+                dialog.RepoName,
+                dialog.RepoPath,
+                dialog.RemoteUrl,
+                RepositoryPathRequirement.RequireGitRepository);
+            if (!result.IsSuccess)
             {
-                var newRepo = new AppSettings.RepositoryEntry
-                {
-                    Name = dialog.RepoName,
-                    Path = dialog.RepoPath,
-                    RemoteUrl = dialog.RemoteUrl
-                };
-
-                // Validate path exists
-                if (!Directory.Exists(newRepo.Path) || !Directory.Exists(Path.Combine(newRepo.Path, ".git")))
-                {
-                    System.Windows.MessageBox.Show("Invalid repository path. Path must exist and contain .git folder.", 
-                        "Invalid Path", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-
-                _settings.Repositories.Add(newRepo);
-                _settings.Save();
-                RefreshRepositories();
-                System.Windows.MessageBox.Show($"Repository '{newRepo.Name}' added successfully!", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                _dialogs.ShowError(result.Message, "Invalid Repository");
+                return;
             }
+
+            _viewModel.RefreshRepositories();
         }
 
-        private void EditRepo_Click(object sender, RoutedEventArgs e)
+        private void DeleteRepository(AppSettings.RepositoryEntry? repository)
         {
-            var btn = sender as System.Windows.Controls.Button;
-            var repo = btn?.DataContext as AppSettings.RepositoryEntry;
-            if (repo == null) return;
+            if (repository == null)
+                return;
 
-            var dialog = new AddRepositoryDialog(repo);
-            if (dialog.ShowDialog() == true)
+            if (!_dialogs.ConfirmYesNo($"Are you sure you want to delete '{repository.Name}'?", "Confirm Delete"))
+                return;
+
+            var removeResult = _configurationService.RemoveRepository(
+                _settings,
+                _settings.Repositories.IndexOf(repository));
+            if (!removeResult.IsSuccess)
             {
-                repo.Name = dialog.RepoName;
-                repo.Path = dialog.RepoPath;
-                repo.RemoteUrl = dialog.RemoteUrl;
-
-                _settings.Save();
-                RefreshRepositories();
+                _dialogs.ShowError(removeResult.Message, "Invalid Repository");
+                return;
             }
+
+            _viewModel.RefreshRepositories();
         }
 
-        private void DeleteRepo_Click(object sender, RoutedEventArgs e)
+        private async void RefreshBranches()
         {
-            var btn = sender as System.Windows.Controls.Button;
-            var repo = btn?.DataContext as AppSettings.RepositoryEntry;
-            if (repo == null) return;
-
-            var result = System.Windows.MessageBox.Show($"Are you sure you want to delete '{repo.Name}'?", 
-                "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (result == MessageBoxResult.Yes)
-            {
-                _settings.Repositories.Remove(repo);
-                _settings.Save();
-                RefreshRepositories();
-            }
+            await RefreshBranchesAsync().ConfigureAwait(false);
         }
 
-        private async void RefreshBranches_Click(object sender, RoutedEventArgs e)
+        private async Task RefreshBranchesAsync()
         {
-            var btn = sender as System.Windows.Controls.Button;
-            btn.IsEnabled = false;
-            btn.Content = "⏳ Refreshing...";
+            _viewModel.SetRefreshingBranches(true);
 
             try
             {
-                foreach (var repo in _repositories)
+                var result = await _configurationService
+                    .RefreshBranchesFromRepositoriesAsync(_settings, _viewModel.Repositories)
+                    .ConfigureAwait(false);
+
+                InvokeOnUiThread(_viewModel.RefreshBranches);
+
+                if (result.FailedRepositories > 0)
                 {
-                    await LoadBranchesFromRepository(repo);
+                    var message = $"Branches refreshed with {result.FailedRepositories} repository failure(s).";
+                    if (result.Errors.Count > 0)
+                        message += $"{Environment.NewLine}{result.Errors[0]}";
+
+                    InvokeOnUiThread(() =>
+                        _dialogs.ShowWarning(message, "Refresh Branches"));
                 }
-                System.Windows.MessageBox.Show("Branches refreshed successfully!", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                else
+                {
+                    InvokeOnUiThread(() =>
+                        _dialogs.ShowInformation(
+                            $"Branches refreshed successfully! Added {result.AddedBranches} new branch(es).",
+                            "Success"));
+                }
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"Error refreshing branches: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                InvokeOnUiThread(() =>
+                    _dialogs.ShowError($"Error refreshing branches: {ex.Message}", "Error"));
             }
             finally
             {
-                btn.IsEnabled = true;
-                btn.Content = "🔄 Refresh Branches";
+                InvokeOnUiThread(() => _viewModel.SetRefreshingBranches(false));
             }
         }
 
-        private async Task LoadBranchesFromRepository(AppSettings.RepositoryEntry repo)
+        private void InvokeOnUiThread(Action action)
         {
-            try
+            if (Dispatcher.CheckAccess())
+                action();
+            else
+                Dispatcher.Invoke(action);
+        }
+
+        private async void AddBranch()
+        {
+            var dialog = new AddBranchDialog(_settings.Repositories.ToList()) { Owner = this };
+            if (dialog.ShowDialog() != true)
+                return;
+
+            var result = _configurationService.AddBranch(
+                _settings, dialog.BranchName, dialog.SelectedRepository, dialog.IsManual);
+            if (!result.IsSuccess)
             {
-                var branches = await GitHelper.GetRemoteBranchesAsync(repo.Path);
-                foreach (var branch in branches)
+                _dialogs.ShowError(result.Message, "Duplicate Branch");
+                return;
+            }
+
+            _viewModel.RefreshBranches();
+            _ = LoadBranchCommitInfoAsync();
+
+            if (dialog.PushToRemote)
+                await PushBranchToRemoteAsync(dialog.BranchName, dialog.SelectedRepository);
+        }
+
+        private async void EditBranch(AppSettings.BranchEntry? branch)
+        {
+            if (branch == null)
+                return;
+
+            var dialog = new AddBranchDialog(_settings.Repositories.ToList(), branch) { Owner = this };
+            if (dialog.ShowDialog() != true)
+                return;
+
+            var result = _configurationService.UpdateBranch(
+                _settings,
+                branch,
+                dialog.BranchName,
+                dialog.SelectedRepository,
+                dialog.IsManual);
+            if (!result.IsSuccess)
+            {
+                _dialogs.ShowError(result.Message, "Duplicate Branch");
+                return;
+            }
+
+            _viewModel.RefreshBranches();
+            _ = LoadBranchCommitInfoAsync();
+
+            if (dialog.PushToRemote)
+                await PushBranchToRemoteAsync(dialog.BranchName, dialog.SelectedRepository);
+        }
+
+        private async Task PushBranchToRemoteAsync(string branchName, string repoName)
+        {
+            var repoPath = _settings.Repositories
+                .FirstOrDefault(r => string.Equals(r.Name, repoName, StringComparison.OrdinalIgnoreCase))
+                ?.Path;
+
+            if (string.IsNullOrWhiteSpace(repoPath))
+            {
+                _dialogs.ShowError($"Could not find path for repository '{repoName}'.", "Push Failed");
+                return;
+            }
+
+            var pushResult = await GitHelper.PushBranchAsync(repoPath, branchName).ConfigureAwait(true);
+            if (pushResult.IsSuccess)
+                _dialogs.ShowInformation($"Branch '{branchName}' pushed to remote successfully.", "Push Successful");
+            else
+                _dialogs.ShowError($"Push failed for '{branchName}':\n{pushResult.StdErr}", "Push Failed");
+        }
+
+        private void DeleteBranch(AppSettings.BranchEntry? branch)
+        {
+            if (branch == null)
+                return;
+
+            if (!_dialogs.ConfirmYesNo($"Are you sure you want to delete '{branch.BranchName}'?", "Confirm Delete"))
+                return;
+
+            var removeResult = _configurationService.RemoveBranch(_settings, branch);
+            if (!removeResult.IsSuccess)
+            {
+                _dialogs.ShowError(removeResult.Message, "Invalid Branch");
+                return;
+            }
+
+            _viewModel.RefreshBranches();
+            _ = LoadBranchCommitInfoAsync();
+        }
+
+        private async System.Threading.Tasks.Task LoadBranchCommitInfoAsync()
+        {
+            _commitLoadCts.Cancel();
+            _commitLoadCts = new System.Threading.CancellationTokenSource();
+            var ct = _commitLoadCts.Token;
+
+            // Snapshot the current branch view-models so we work on a stable list
+            var items = _viewModel.Branches.ToList();
+
+            foreach (var bvm in items)
+            {
+                if (ct.IsCancellationRequested) break;
+
+                var repoPath = _settings.Repositories
+                    .FirstOrDefault(r => string.Equals(r.Name, bvm.Repository, StringComparison.OrdinalIgnoreCase))
+                    ?.Path;
+
+                if (string.IsNullOrWhiteSpace(repoPath) || string.IsNullOrWhiteSpace(bvm.BranchName))
+                    continue;
+
+                try
                 {
-                    if (!_settings.CustomBranches.Any(b => b.BranchName == branch && b.Repository == repo.Name))
-                    {
-                        _settings.CustomBranches.Add(new AppSettings.BranchEntry
-                        {
-                            BranchName = branch,
-                            Repository = repo.Name
-                        });
-                    }
+                    var info = await GitHelper.GetLastCommitForBranchAsync(repoPath, bvm.BranchName!, ct)
+                        .ConfigureAwait(true);
+
+                    if (!ct.IsCancellationRequested)
+                        bvm.LastCommitInfo = info;
                 }
+                catch (OperationCanceledException) { break; }
+                catch { /* silently skip if git fails for this branch */ }
             }
-            catch { }
-        }
-
-        private void AddBranch_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new AddBranchDialog(_repositories.Select(r => r.Name).Where(n => !string.IsNullOrWhiteSpace(n)).ToList());
-            if (dialog.ShowDialog() == true)
-            {
-                var newBranch = new AppSettings.BranchEntry
-                {
-                    BranchName = dialog.BranchName,
-                    Repository = dialog.SelectedRepository
-                };
-
-                _settings.CustomBranches.Add(newBranch);
-                _settings.Save();
-                RefreshBranches();
-            }
-        }
-
-        private void EditBranch_Click(object sender, RoutedEventArgs e)
-        {
-            var btn = sender as System.Windows.Controls.Button;
-            var branch = btn?.DataContext as AppSettings.BranchEntry;
-            if (branch == null) return;
-
-            var dialog = new AddBranchDialog(
-                _repositories.Select(r => r.Name).Where(n => !string.IsNullOrWhiteSpace(n)).ToList(),
-                branch);
-            if (dialog.ShowDialog() == true)
-            {
-                branch.BranchName = dialog.BranchName;
-                branch.Repository = dialog.SelectedRepository;
-                _settings.Save();
-                RefreshBranches();
-            }
-        }
-
-        private void DeleteBranch_Click(object sender, RoutedEventArgs e)
-        {
-            var btn = sender as System.Windows.Controls.Button;
-            var branch = btn?.DataContext as AppSettings.BranchEntry;
-            if (branch == null) return;
-
-            var result = System.Windows.MessageBox.Show($"Are you sure you want to delete '{branch.BranchName}'?", 
-                "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (result == MessageBoxResult.Yes)
-            {
-                _settings.CustomBranches.Remove(branch);
-                _settings.Save();
-                RefreshBranches();
-            }
-        }
-
-        private void Close_Click(object sender, RoutedEventArgs e)
-        {
-            this.Close();
         }
     }
 }

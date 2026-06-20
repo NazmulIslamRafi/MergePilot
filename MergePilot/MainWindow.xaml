@@ -71,14 +71,144 @@ Title="Merge Pilot"
             <Setter Property="BorderThickness" Value="1"/>
         </Style>
 
-        <!-- ComboBox Style for Branch Selection -->
+        <!-- ComboBox Style for Branch Selection (dark-themed, full-area click) -->
         <Style TargetType="ComboBox" x:Key="ResponsiveComboBoxStyle">
-            <Setter Property="Foreground" Value="#0284C7"/>
+            <Setter Property="Foreground" Value="#CBD5E1"/>
+            <Setter Property="Background" Value="#142033"/>
             <Setter Property="BorderBrush" Value="#334155"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="8,6"/>
             <Setter Property="Height" Value="32"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="MaxDropDownHeight" Value="320"/>
+            <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True"/>
+            <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <!-- Dark-themed ComboBoxItem container -->
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        <Setter Property="Padding" Value="0"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ComboBoxItem">
+                                    <Border x:Name="ItemBd" Background="Transparent"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Stretch"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="ItemBd" Property="Background" Value="#1A3A52"/>
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="ItemBd" Property="Background" Value="#1E3A5F"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid x:Name="Root">
+                            <Border x:Name="Bd"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6">
+                                <Grid>
+                                    <!-- Full-area invisible toggle — clicking anywhere opens the dropdown -->
+                                    <ToggleButton x:Name="DropToggle"
+                                                  Focusable="False"
+                                                  IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                                  ClickMode="Press"
+                                                  HorizontalAlignment="Stretch"
+                                                  VerticalAlignment="Stretch">
+                                        <ToggleButton.Template>
+                                            <ControlTemplate TargetType="ToggleButton">
+                                                <Border Background="Transparent"/>
+                                            </ControlTemplate>
+                                        </ToggleButton.Template>
+                                    </ToggleButton>
+                                    <!-- Placeholder shown when nothing selected -->
+                                    <TextBlock x:Name="Placeholder"
+                                               Text="{Binding Path=(materialDesign:HintAssist.Hint), RelativeSource={RelativeSource TemplatedParent}}"
+                                               Foreground="#475569"
+                                               FontStyle="Italic"
+                                               FontSize="12"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Left"
+                                               Margin="10,0,30,0"
+                                               IsHitTestVisible="False"
+                                               Visibility="Collapsed"/>
+                                    <!-- Selected item text (non-interactive overlay) -->
+                                    <ContentPresenter x:Name="ContentSite"
+                                                      VerticalAlignment="Center"
+                                                      HorizontalAlignment="Left"
+                                                      Content="{TemplateBinding SelectionBoxItem}"
+                                                      ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                      Margin="10,0,30,0"
+                                                      IsHitTestVisible="False"/>
+                                    <!-- Arrow icon (non-interactive overlay) -->
+                                    <Path Data="M 0 0 L 5 5 L 10 0 Z"
+                                          Fill="#64748B"
+                                          Stretch="Uniform"
+                                          Width="10" Height="6"
+                                          HorizontalAlignment="Right"
+                                          VerticalAlignment="Center"
+                                          Margin="0,0,10,0"
+                                          IsHitTestVisible="False"/>
+                                </Grid>
+                            </Border>
+                            <!-- Dropdown popup -->
+                            <Popup x:Name="PART_Popup"
+                                   Placement="Bottom"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   PopupAnimation="Slide"
+                                   Width="{Binding ActualWidth, ElementName=Root}">
+                                <Border Background="#1E293B"
+                                        BorderBrush="#334155"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Margin="0,2,0,0">
+                                    <ScrollViewer MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                                  SnapsToDevicePixels="True"
+                                                  Margin="2">
+                                        <VirtualizingStackPanel IsItemsHost="True"
+                                                                KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <!-- Show placeholder when no item is selected -->
+                            <Trigger Property="SelectedItem" Value="{x:Null}">
+                                <Setter TargetName="ContentSite" Property="Visibility" Value="Collapsed"/>
+                                <Setter TargetName="Placeholder" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#38BDF8"/>
+                            </Trigger>
+                            <Trigger Property="IsDropDownOpen" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#38BDF8"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#1E293B"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="#0F1A2B"/>
+                                <Setter Property="Foreground" Value="#475569"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- Multi-Select CheckBox Style -->
@@ -108,6 +238,7 @@ Title="Merge Pilot"
                           Margin="4,0,8,0"
                           Style="{StaticResource MultiSelectCheckBoxStyle}"
                           Tag="{Binding FullName}"
+                          AutomationProperties.Name="{Binding FullName}"
                           IsChecked="{Binding IsChecked, Mode=TwoWay}"
                           Checked="BranchCheckBox_Changed"
                           Unchecked="BranchCheckBox_Changed"
@@ -115,7 +246,7 @@ Title="Merge Pilot"
                 
                 <!-- Display text -->
                 <TextBlock Text="{Binding Name}"
-                           Foreground="#0F1724"
+                           Foreground="#E2E8F0"
                            FontWeight="{Binding IsGroup, Converter={StaticResource BoolToFontWeightConverter}}"
                            VerticalAlignment="Center"/>
             </StackPanel>
@@ -130,8 +261,8 @@ Title="Merge Pilot"
                           Tag="{Binding}"
                           Checked="BranchCheckBox_Changed"
                           Unchecked="BranchCheckBox_Changed"/>
-                <TextBlock Text="{Binding}" 
-                           Foreground="#0F1724"
+                <TextBlock Text="{Binding}"
+                           Foreground="#E2E8F0"
                            VerticalAlignment="Center"/>
             </StackPanel>
         </DataTemplate>
@@ -220,7 +351,7 @@ Title="Merge Pilot"
                                 
                                 <Button Grid.Column="2"
                                         Content="Add Repo" 
-                                        Command="{Binding ManageRepositoriesCommand}"
+                                        Command="{Binding ManageRepositoriesWorkflowCommand}"
                                         HorizontalAlignment="Right"
                                         Style="{StaticResource MaterialDesignRaisedButton}"
                                         Background="{StaticResource NormalGradientBrush}"
@@ -263,14 +394,18 @@ Title="Merge Pilot"
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBox x:Name="txtRepoName" Grid.Column="0" MinWidth="180" Height="26" Margin="0 0 8 0" materialDesign:HintAssist.Hint="Repo friendly name" ToolTip="Friendly name for the repo" AutomationProperties.Name="RepoName" />
-                                            <TextBox x:Name="txtRepoPath" Grid.Column="1" Height="26" Margin="0 0 8 0" HorizontalAlignment="Stretch" materialDesign:HintAssist.Hint="Local path to repository" ToolTip="Local filesystem path to the repository" AutomationProperties.Name="RepoPath" />
-                                            <Button x:Name="btnBrowseRepoPath" Grid.Column="2" Content="..." Width="28" Height="26" Margin="0 0 8 0" Click="BrowseRepoPath_Click" />
-                                            <Button x:Name="btnAddRepo" Grid.Column="3" Content="Add Repo" Width="90" Height="26" Click="AddRepo_Click" />
+                                            <TextBox Grid.Column="0" MinWidth="180" Height="26" Margin="0 0 8 0" Text="{Binding InlineRepositoryName, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Repo friendly name" ToolTip="Friendly name for the repo" AutomationProperties.Name="RepoName" />
+                                            <TextBox Grid.Column="1" Height="26" Margin="0 0 8 0" HorizontalAlignment="Stretch" Text="{Binding InlineRepositoryPath, UpdateSourceTrigger=PropertyChanged}" materialDesign:HintAssist.Hint="Local path to repository" ToolTip="Local filesystem path to the repository" AutomationProperties.Name="RepoPath" />
+                                            <Button Grid.Column="2" Content="..." Width="28" Height="26" Margin="0 0 8 0" Command="{Binding BrowseRepositoryPathWorkflowCommand}" />
+                                            <Button Grid.Column="3" Content="Add Repo" Width="90" Height="26" Command="{Binding AddRepositoryWorkflowCommand}" IsEnabled="{Binding CanAddInlineRepository}" />
                                         </Grid>
 
                                         <StackPanel Orientation="Horizontal" Margin="12 4 12 0">
                                             <ListView x:Name="lstRepos" MinWidth="200" Height="120" HorizontalAlignment="Stretch" SelectionChanged="LstRepos_SelectionChanged"
+                                          ScrollViewer.CanContentScroll="True"
+                                          VirtualizingPanel.IsVirtualizing="True"
+                                          VirtualizingPanel.VirtualizationMode="Recycling"
+                                          ItemsSource="{Binding Repositories}"
                                           ToolTip="List of configured repositories" AutomationProperties.Name="RepositoriesList" KeyboardNavigation.TabIndex="5">
                                                 <ListView.View>
                                                     <GridView>
@@ -282,9 +417,9 @@ Title="Merge Pilot"
                                         </StackPanel>
 
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="12 8 12 12">
-                                            <Button x:Name="btnEditRepo" Content="Edit Selected" Width="100" Height="26" Click="EditRepo_Click" Margin="0 0 8 0" ToolTip="Edit selected repo" AutomationProperties.Name="EditRepoButton" />
-                                            <Button x:Name="btnUpdateRepo" Content="Update" Width="80" Height="26" Click="UpdateRepo_Click" IsEnabled="False" Margin="0 0 8 0" ToolTip="Update selected repo" AutomationProperties.Name="UpdateRepoButton" />
-                                            <Button x:Name="btnRemoveRepo" Content="Remove Selected" Width="120" Height="26" Click="RemoveRepo_Click" ToolTip="Remove selected repo" AutomationProperties.Name="RemoveRepoButton" />
+                                            <Button x:Name="btnEditRepo" Content="Edit Selected" Width="100" Height="26" Command="{Binding EditRepositoryWorkflowCommand}" Margin="0 0 8 0" ToolTip="Edit selected repo" AutomationProperties.Name="EditRepoButton" />
+                                            <Button Content="Update" Width="80" Height="26" Command="{Binding UpdateRepositoryWorkflowCommand}" IsEnabled="{Binding CanUpdateInlineRepository}" Margin="0 0 8 0" ToolTip="Update selected repo" AutomationProperties.Name="UpdateRepoButton" />
+                                            <Button x:Name="btnRemoveRepo" Content="Remove Selected" Width="120" Height="26" Command="{Binding RemoveRepositoryWorkflowCommand}" ToolTip="Remove selected repo" AutomationProperties.Name="RemoveRepoButton" />
                                         </StackPanel>
                                     </StackPanel>
                                 </StackPanel>
@@ -300,7 +435,27 @@ Title="Merge Pilot"
                     <StackPanel Margin="0 0 0 2">
                         <StackPanel Margin="0">
                             <!-- Dynamic repository checkboxes -->
-                            <StackPanel x:Name="DynamicRepoPanel" Orientation="Vertical" Margin="0 0 0 2"/>
+                            <ItemsControl x:Name="DynamicRepoPanel"
+                                          ItemsSource="{Binding SelectableRepositories}"
+                                          Margin="0 0 0 2">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Vertical"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <CheckBox Content="{Binding DisplayName}"
+                                                  Tag="{Binding Path}"
+                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                  AutomationProperties.Name="{Binding DisplayName}"
+                                                  Style="{StaticResource DynamicRepoCheckBoxStyle}"
+                                                  Margin="0 0 15 0"
+                                                  Checked="CheckBox_Changed"
+                                                  Unchecked="CheckBox_Changed"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
                     </StackPanel>
 
@@ -357,6 +512,9 @@ Title="Merge Pilot"
                                   HorizontalAlignment="Stretch"
                                   StaysOpenOnEdit="True"
                                   IsEditable="False"
+                                  ScrollViewer.CanContentScroll="True"
+                                  AutomationProperties.AutomationId="SourceBranchBox"
+                                  AutomationProperties.Name="Source Branches"
                                   ItemsSource="{Binding SourceBranches}"
                                   materialDesign:HintAssist.Hint="Select source branches (check items)"
                                   ItemTemplate="{StaticResource HierarchicalBranchTemplate}" />
@@ -374,6 +532,8 @@ Title="Merge Pilot"
                                   HorizontalAlignment="Stretch"
                                   StaysOpenOnEdit="True"
                                   IsEditable="False"
+                                  AutomationProperties.AutomationId="TargetBranchBox"
+                                  AutomationProperties.Name="Target Branches"
                                   ItemsSource="{Binding TargetBranches}"
                                   materialDesign:HintAssist.Hint="Select target branches (check items)"
                                   ItemTemplate="{StaticResource HierarchicalBranchTemplate}" />
@@ -391,62 +551,43 @@ Title="Merge Pilot"
                             <!-- Merge Button -->
                             <Button x:Name="btnMerge"
                                     Grid.Column="11"
-                                    Content="Merge"
-                                    Command="{Binding MergeCommand}"
-                                    IsEnabled="{Binding CanMerge}"
-                                    Style="{StaticResource MaterialDesignRaisedButton}"
-                                    Background="{StaticResource NormalGradientBrush}"
+                                    Command="{Binding MergeWorkflowCommand}"
+                                    AutomationProperties.AutomationId="MergeButton"
                                     Foreground="White"
-                                    FontWeight="Bold"
-                                    FontSize="12"
-                                    FontFamily="Alkatra SemiBold"
-                                    Width="100"
-                                    Height="25"
-                                    Padding="3 3"
-                                    materialDesign:ButtonProgressAssist.IsIndeterminate="False">
+                                    FontWeight="SemiBold"
+                                    FontSize="13"
+                                    Height="36"
+                                    Padding="14,0"
+                                    Cursor="Hand"
+                                    BorderThickness="0">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border x:Name="border"
-                                        Background="{TemplateBinding Background}"
-                                        CornerRadius="10"
-                                        Padding="{TemplateBinding Padding}">
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <materialDesign:PackIcon x:Name="MergeIcon" Kind="SourceMerge" Width="20" Height="20"/>
-                                                <ContentPresenter VerticalAlignment="Center"/>
+                                                CornerRadius="10"
+                                                Padding="{TemplateBinding Padding}">
+                                            <Border.Background>
+                                                <SolidColorBrush x:Name="BtnBg" Color="#1E3A5F"/>
+                                            </Border.Background>
+                                            <Border.Effect>
+                                                <DropShadowEffect Color="#000000" BlurRadius="8" ShadowDepth="2" Opacity="0.3"/>
+                                            </Border.Effect>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="2,0">
+                                                <materialDesign:PackIcon Kind="SourceMerge" Width="18" Height="18"
+                                                                         Foreground="#60A5FA" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBlock Text="Merge" Foreground="White" FontWeight="SemiBold"
+                                                           FontSize="13" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
-
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="border" Property="Background" Value="{StaticResource HoverGradientBrush}"/>
+                                                <Setter TargetName="border" Property="Background" Value="#264D7A"/>
                                             </Trigger>
-
-                                            <Trigger Property="IsEnabled" Value="True">
-                                                <Setter TargetName="border" Property="Background" Value="{StaticResource NormalGradientBrush}"/>
-                                                <Setter Property="Opacity" Value="1"/>
-                                                <Trigger.EnterActions>
-                                                    <BeginStoryboard x:Name="MergeAnimStoryboard">
-                                                        <Storyboard RepeatBehavior="Forever" AutoReverse="True">
-                                                            <DoubleAnimation
-                                                        Storyboard.TargetName="MergeIcon"
-                                                        Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
-                                                        From="0" To="-6"
-                                                        Duration="0:0:0.6"
-                                                        AutoReverse="True"/>
-                                                        </Storyboard>
-                                                    </BeginStoryboard>
-                                                </Trigger.EnterActions>
-                                                <Trigger.ExitActions>
-                                                    <StopStoryboard BeginStoryboardName="MergeAnimStoryboard"/>
-                                                </Trigger.ExitActions>
+                                            <Trigger Property="IsPressed" Value="True">
+                                                <Setter TargetName="border" Property="Background" Value="#162E4A"/>
                                             </Trigger>
-
                                             <Trigger Property="IsEnabled" Value="False">
-                                                <Setter TargetName="border" Property="Background" Value="#475569"/>
-                                                <Setter Property="Opacity" Value="0.7"/>
-                                                <Trigger.EnterActions>
-                                                    <StopStoryboard BeginStoryboardName="MergeAnimStoryboard"/>
-                                                </Trigger.EnterActions>
+                                                <Setter TargetName="border" Property="Background" Value="#1A2744"/>
+                                                <Setter Property="Opacity" Value="0.5"/>
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
@@ -456,95 +597,95 @@ Title="Merge Pilot"
                             <!-- Pull Button -->
                             <Button x:Name="btnPullBranches"
                                     Grid.Column="13"
-                                    Content="Pull"
-                                    Command="{Binding PullBranchCommand}"
+                                    Command="{Binding PullWorkflowCommand}"
+                                    AutomationProperties.AutomationId="PullButton"
                                     ToolTip="Fetch latest branches from origin for selected repositories"
-                                    Style="{StaticResource MaterialDesignRaisedButton}"
-                                    Background="{StaticResource NormalGradientBrush}"
                                     Foreground="White"
-                                    FontWeight="Bold"
-                                    FontSize="12"
-                                    FontFamily="Alkatra SemiBold"
-                                    Width="100"
-                                    Height="25"
-                                    Padding="3 3"
-                                    materialDesign:ButtonProgressAssist.IsIndeterminate="False">
+                                    FontWeight="SemiBold"
+                                    FontSize="13"
+                                    Height="36"
+                                    Padding="14,0"
+                                    Cursor="Hand"
+                                    BorderThickness="0">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border x:Name="border"
-                                        Background="{TemplateBinding Background}"
-                                        CornerRadius="10"
-                                        Padding="{TemplateBinding Padding}">
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <materialDesign:PackIcon x:Name="PullIcon" Kind="SourcePull" Width="20" Height="20"/>
-                                                <ContentPresenter VerticalAlignment="Center"/>
+                                                CornerRadius="10"
+                                                Padding="{TemplateBinding Padding}">
+                                            <Border.Background>
+                                                <SolidColorBrush Color="#1E3A5F"/>
+                                            </Border.Background>
+                                            <Border.Effect>
+                                                <DropShadowEffect Color="#000000" BlurRadius="8" ShadowDepth="2" Opacity="0.3"/>
+                                            </Border.Effect>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="2,0">
+                                                <materialDesign:PackIcon Kind="SourcePull" Width="18" Height="18"
+                                                                         Foreground="#60A5FA" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBlock Text="Pull" Foreground="White" FontWeight="SemiBold"
+                                                           FontSize="13" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
-
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="border" Property="Background" Value="{StaticResource HoverGradientBrush}"/>
+                                                <Setter TargetName="border" Property="Background" Value="#264D7A"/>
                                             </Trigger>
-
-                                            <Trigger Property="IsEnabled" Value="True">
-                                                <Setter TargetName="border" Property="Background" Value="{StaticResource NormalGradientBrush}"/>
-                                                <Setter Property="Opacity" Value="1"/>
-                                                <Trigger.EnterActions>
-                                                    <BeginStoryboard x:Name="PullAnimStoryboard">
-                                                        <Storyboard RepeatBehavior="Forever" AutoReverse="True">
-                                                            <DoubleAnimation
-                                                        Storyboard.TargetName="PullIcon"
-                                                        Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
-                                                        From="0" To="-6"
-                                                        Duration="0:0:0.6"
-                                                        AutoReverse="True"/>
-                                                        </Storyboard>
-                                                    </BeginStoryboard>
-                                                </Trigger.EnterActions>
-                                                <Trigger.ExitActions>
-                                                    <StopStoryboard BeginStoryboardName="PullAnimStoryboard"/>
-                                                </Trigger.ExitActions>
+                                            <Trigger Property="IsPressed" Value="True">
+                                                <Setter TargetName="border" Property="Background" Value="#162E4A"/>
                                             </Trigger>
-
                                             <Trigger Property="IsEnabled" Value="False">
-                                                <Setter TargetName="border" Property="Background" Value="#475569"/>
-                                                <Setter Property="Opacity" Value="0.7"/>
-                                                <Trigger.EnterActions>
-                                                    <StopStoryboard BeginStoryboardName="PullAnimStoryboard"/>
-                                                </Trigger.EnterActions>
+                                                <Setter TargetName="border" Property="Background" Value="#1A2744"/>
+                                                <Setter Property="Opacity" Value="0.5"/>
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
                                 </Button.Template>
                             </Button>
+
                             <!-- Refresh Button -->
                             <Button x:Name="btnRefreshBranches"
                                     Grid.Column="15"
-                                    Content="Refresh"
-                                    Command="{Binding RefreshBranchesCommand}"
+                                    Command="{Binding RefreshWorkflowCommand}"
+                                    AutomationProperties.AutomationId="RefreshButton"
                                     ToolTip="Refresh remote branch list for selected repositories"
-                                    Style="{StaticResource MaterialDesignRaisedButton}"
-                                    Background="{StaticResource NormalGradientBrush}"
                                     Foreground="White"
-                                    FontWeight="Bold"
-                                    FontSize="12"
-                                    FontFamily="Alkatra SemiBold"
-                                    Width="100"
-                                    Height="25"
-                                    Padding="3 3"
-                                    materialDesign:ButtonProgressAssist.IsIndeterminate="False" >
+                                    FontWeight="SemiBold"
+                                    FontSize="13"
+                                    Height="36"
+                                    Padding="14,0"
+                                    Cursor="Hand"
+                                    BorderThickness="0">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border x:Name="border"
-                                        Background="{TemplateBinding Background}"
-                                        CornerRadius="10"
-                                        Padding="{TemplateBinding Padding}">
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                <materialDesign:PackIcon x:Name="RefreshIcon" Kind="Refresh" Width="20" Height="20"/>
-                                                <ContentPresenter VerticalAlignment="Center"/>
+                                                CornerRadius="10"
+                                                Padding="{TemplateBinding Padding}">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                    <GradientStop Color="#38BDF8" Offset="0"/>
+                                                    <GradientStop Color="#0284C7" Offset="1"/>
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                            <Border.Effect>
+                                                <DropShadowEffect Color="#0284C7" BlurRadius="10" ShadowDepth="0" Opacity="0.5"/>
+                                            </Border.Effect>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="2,0">
+                                                <materialDesign:PackIcon Kind="Refresh" Width="18" Height="18"
+                                                                         Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBlock Text="Refresh" Foreground="White" FontWeight="SemiBold"
+                                                           FontSize="13" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Border>
-
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="border" Property="Opacity" Value="0.88"/>
+                                            </Trigger>
+                                            <Trigger Property="IsPressed" Value="True">
+                                                <Setter TargetName="border" Property="Opacity" Value="0.7"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter TargetName="border" Property="Opacity" Value="0.45"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
                                     </ControlTemplate>
                                 </Button.Template>
                             </Button>
@@ -573,7 +714,7 @@ Title="Merge Pilot"
                     <!-- Single Log Display -->
                     <Border Background="#0F1724" CornerRadius="6" Padding="5" Height="430" RenderOptions.CachingHint="Cache">
                         <ScrollViewer x:Name="LogScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" CanContentScroll="False">
-                            <RichTextBox x:Name="OutputBox" IsReadOnly="True" FontFamily="Alkatra" FontSize="11" Background="#0F1724" Foreground="#E2E8F0" BorderThickness="0" Margin="0" Padding="5" TextOptions.TextRenderingMode="Auto" />
+                            <RichTextBox x:Name="OutputBox" AutomationProperties.AutomationId="OutputLogBox" AutomationProperties.Name="Log Output" IsReadOnly="True" FontFamily="Alkatra" FontSize="11" Background="#0F1724" Foreground="#E2E8F0" BorderThickness="0" Margin="0" Padding="5" TextOptions.TextRenderingMode="Auto" />
                         </ScrollViewer>
                     </Border>
                 </StackPanel>
